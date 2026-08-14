@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../../services/api';
 import { useSocket } from '../../context/SocketContext';
-import { UserPlus, Users, Mail, Search, Check, X, MessageSquare, Trash2, ShieldCheck, Clock, UserCheck } from 'lucide-react';
+import { UserPlus, Users, Mail, Search, Check, X, MessageSquare, Trash2, ShieldCheck, Clock, UserCheck, ArrowLeft } from 'lucide-react';
 
-export default function FriendsView({ onStartChat }) {
+export default function FriendsView({ onStartChat, onBack }) {
   const { socket } = useSocket();
   const [activeTab, setActiveTab] = useState('friends'); // 'find', 'requests', 'friends'
 
@@ -65,43 +65,35 @@ export default function FriendsView({ onStartChat }) {
     };
   }, [socket]);
 
-  // Search People
-  useEffect(() => {
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      return;
-    }
+  const handleSearch = async (e) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
 
-    const timer = setTimeout(async () => {
-      setLoading(true);
-      try {
-        const data = await apiRequest(`/users/search?query=${encodeURIComponent(searchQuery.trim())}`);
-        setSearchResults(data.users || []);
-      } catch (err) {
-        console.error('Search error:', err);
-      } finally {
-        setLoading(false);
-      }
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
-
-  // Action Handlers
-  const handleSendRequest = async (targetUser) => {
-    setActionLoading(prev => ({ ...prev, [targetUser.id]: true }));
+    setLoading(true);
     try {
-      const data = await apiRequest('/friends/request', 'POST', { targetUserId: targetUser.id });
-      if (socket) {
-        socket.emit('friend_request', { targetUserId: targetUser.id, requestId: data.friendshipId });
-      }
+      const data = await apiRequest(`/users/search?q=${encodeURIComponent(searchQuery.trim())}`);
+      setSearchResults(data.users || []);
+    } catch (err) {
+      alert(err.message || 'Search failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendRequest = async (targetUserId) => {
+    setActionLoading(prev => ({ ...prev, [targetUserId]: true }));
+    try {
+      await apiRequest('/friends/request', 'POST', { targetUserId });
       fetchRequests();
-      // Update local search state
-      setSearchResults(prev => prev.map(u => u.id === targetUser.id ? { ...u, friendshipStatus: 'PENDING_SENT' } : u));
+      // Re-search to update state
+      if (searchQuery.trim()) {
+        const data = await apiRequest(`/users/search?q=${encodeURIComponent(searchQuery.trim())}`);
+        setSearchResults(data.users || []);
+      }
     } catch (err) {
       alert(err.message);
     } finally {
-      setActionLoading(prev => ({ ...prev, [targetUser.id]: false }));
+      setActionLoading(prev => ({ ...prev, [targetUserId]: false }));
     }
   };
 
@@ -109,9 +101,6 @@ export default function FriendsView({ onStartChat }) {
     setActionLoading(prev => ({ ...prev, [request.requestId]: true }));
     try {
       await apiRequest(`/friends/request/${request.requestId}/accept`, 'PUT');
-      if (socket) {
-        socket.emit('friend_accept', { targetUserId: request.senderId, requestId: request.requestId });
-      }
       fetchFriends();
       fetchRequests();
     } catch (err) {
@@ -159,12 +148,23 @@ export default function FriendsView({ onStartChat }) {
     <div className="flex-1 flex flex-col h-full bg-slate-900 overflow-hidden">
       {/* Top Bar Header */}
       <div className="p-4 border-b border-slate-800 flex flex-wrap items-center justify-between gap-4 bg-slate-900/60 backdrop-blur-md">
-        <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2 font-display">
-            <Users className="w-6 h-6 text-indigo-400" />
-            <span>Friends Center</span>
-          </h2>
-          <p className="text-xs text-slate-400">Connect, manage friend requests, and start instant conversations</p>
+        <div className="flex items-center gap-3">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="md:hidden p-2 text-slate-400 hover:text-white bg-slate-800 rounded-xl transition-all shrink-0"
+              title="Back to Chats"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          )}
+          <div>
+            <h2 className="text-xl font-bold text-white flex items-center gap-2 font-display">
+              <Users className="w-6 h-6 text-indigo-400" />
+              <span>Friends Center</span>
+            </h2>
+            <p className="text-xs text-slate-400">Connect, manage friend requests, and start instant conversations</p>
+          </div>
         </div>
 
         {/* Sub-Tabs */}

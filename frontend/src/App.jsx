@@ -63,7 +63,7 @@ function MainApp() {
       />
 
       {/* Sidebar Navigation */}
-      <div className={`${activeConvId && currentView === 'chat' ? 'hidden md:flex' : 'flex'} w-full md:w-auto h-full shrink-0`}>
+      <div className={`${(activeConvId || currentView === 'friends') ? 'hidden md:flex' : 'flex'} w-full md:w-auto h-full shrink-0`}>
         <Sidebar
           activeConvId={activeConvId}
           onSelectConv={(convId) => {
@@ -77,9 +77,12 @@ function MainApp() {
       </div>
 
       {/* Main Content Workspace */}
-      <div className={`${!activeConvId && currentView === 'chat' ? 'hidden md:flex' : 'flex'} flex-1 h-full overflow-hidden`}>
+      <div className={`${(!activeConvId && currentView === 'chat') ? 'hidden md:flex' : 'flex'} flex-1 h-full overflow-hidden`}>
         {currentView === 'friends' ? (
-          <FriendsView onStartChat={handleStartChatFromFriends} />
+          <FriendsView
+            onStartChat={handleStartChatFromFriends}
+            onBack={() => setCurrentView('chat')}
+          />
         ) : activeConvId ? (
           <ChatWindow
             conversationId={activeConvId}
