@@ -83,8 +83,88 @@ function login(req, res) {
   }
 }
 
+function decodeGoogleToken(credential) {
+  try {
+    const parts = credential.split('.');
+    if (parts.length !== 3) return null;
+    const payloadJson = Buffer.from(parts[1], 'base64').toString('utf8');
+    return JSON.parse(payloadJson);
+  } catch (e) {
+    return null;
+  }
+}
+
+function googleLogin(req, res) {
+  try {
+    const { credential, profile } = req.body;
+    let email = null;
+    let name = null;
+    let picture = null;
+
+    if (credential) {
+      const decoded = decodeGoogleToken(credential);
+      if (decoded) {
+        email = decoded.email;
+        name = decoded.name || decoded.given_name;
+        picture = decoded.picture;
+      }
+    } else if (profile) {
+      email = profile.email;
+      name = profile.name;
+      picture = profile.picture;
+    }
+
+    if (!email) {
+      return res.status(400).json({ error: 'Failed to retrieve Google user information' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    let user = db.prepare('SELECT * FROM users WHERE LOWER(email) = LOWER(?)').get(cleanEmail);
+
+    const now = new Date().toISOString();
+
+    if (!user) {
+      // Create new user for Google OAuth
+      let baseUsername = (name || email.split('@')[0]).replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
+      let uniqueUsername = baseUsername;
+      let counter = 1;
+
+      while (db.prepare('SELECT id FROM users WHERE username = ?').get(uniqueUsername)) {
+        uniqueUsername = `${baseUsername}_${counter++}`;
+      }
+
+      const id = crypto.randomUUID();
+      const randomPasswordHash = bcrypt.hashSync(crypto.randomUUID(), 10);
+      const avatarUrl = picture || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(uniqueUsername)}`;
+
+      db.prepare(`
+        INSERT INTO users (id, username, email, password_hash, avatar_url, status_text, is_online, last_seen)
+        VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+      `).run(id, uniqueUsername, cleanEmail, randomPasswordHash, avatarUrl, 'Available via Google Sign-In', now);
+
+      user = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+    } else {
+      // Update online status and avatar
+      const avatarUrl = user.avatar_url || picture || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user.username)}`;
+      db.prepare('UPDATE users SET is_online = 1, avatar_url = ?, last_seen = ? WHERE id = ?').run(avatarUrl, now, user.id);
+    }
+
+    const updatedUser = db.prepare('SELECT id, username, email, phone, avatar_url, status_text, is_online, last_seen, created_at FROM users WHERE id = ?').get(user.id);
+    const token = generateToken({ id: updatedUser.id, username: updatedUser.username });
+
+    return res.json({
+      message: 'Google login successful',
+      token,
+      user: updatedUser
+    });
+  } catch (err) {
+    console.error('Google Login Error:', err);
+    return res.status(500).json({ error: 'Internal server error during Google login' });
+  }
+}
+
 function getMe(req, res) {
   return res.json({ user: req.user });
 }
 
-module.exports = { register, login, getMe };
+module.exports = { register, login, googleLogin, getMe };

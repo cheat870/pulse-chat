@@ -43,6 +43,14 @@ export function AuthProvider({ children }) {
     return data;
   };
 
+  const loginWithGoogle = async (googleData) => {
+    const data = await apiRequest('/auth/google', 'POST', googleData);
+    localStorage.setItem('pulsechat_token', data.token);
+    setToken(data.token);
+    setUser(data.user);
+    return data;
+  };
+
   const logout = () => {
     localStorage.removeItem('pulsechat_token');
     setToken(null);
@@ -54,7 +62,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, updateUserProfile }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, loginWithGoogle, logout, updateUserProfile }}>
       {children}
     </AuthContext.Provider>
   );
