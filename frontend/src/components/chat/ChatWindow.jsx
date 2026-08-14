@@ -48,8 +48,12 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
     socket.emit('join_conversation', conversationId);
 
     const handleNewMessage = (data) => {
-      if (data.conversationId === conversationId) {
-        setMessages(prev => [...prev, data.message]);
+      if (data.conversationId === conversationId && data.message) {
+        setMessages(prev => {
+          // Deduplicate: skip if message ID already exists (own message added locally)
+          if (prev.some(m => m.id === data.message.id)) return prev;
+          return [...prev, data.message];
+        });
         if (data.message.sender_id !== user.id) {
           playChime('message');
         }
