@@ -26,7 +26,16 @@ export function SocketProvider({ children }) {
       Notification.requestPermission();
     }
 
-    const socketUrl = import.meta.env.VITE_SOCKET_URL || window.location.origin;
+    const getSocketUrl = () => {
+      const customUrl = import.meta.env.VITE_SOCKET_URL;
+      if (customUrl && customUrl.trim()) return customUrl;
+      if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        return 'https://pulse-chat-o97b.onrender.com';
+      }
+      return window.location.origin;
+    };
+
+    const socketUrl = getSocketUrl();
     const newSocket = io(socketUrl, {
       auth: { token },
       transports: ['websocket', 'polling']
