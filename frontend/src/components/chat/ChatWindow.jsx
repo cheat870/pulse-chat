@@ -110,6 +110,7 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
       if (socket) {
         socket.emit('send_message', { conversationId, message: res.message });
       }
+      window.dispatchEvent(new CustomEvent('pulse_message_sent', { detail: { conversationId } }));
     } catch (err) {
       alert(err.message || 'Failed to send message');
     }

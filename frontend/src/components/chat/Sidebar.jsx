@@ -47,25 +47,30 @@ export default function Sidebar({ activeConvId, onSelectConv, onOpenFriends, onO
     return () => clearInterval(interval);
   }, []);
 
-  // Real-time Socket.IO Auto-Refresh Listeners
+  // Real-time Socket.IO & Custom Event Auto-Refresh Listeners
   useEffect(() => {
-    if (!socket) return;
-
     const handleAutoRefresh = () => {
       fetchConversations();
       fetchUnreadRequests();
     };
 
-    socket.on('new_message', handleAutoRefresh);
-    socket.on('user_status_changed', handleAutoRefresh);
-    socket.on('incoming_friend_request', handleAutoRefresh);
-    socket.on('friend_request_accepted', handleAutoRefresh);
+    window.addEventListener('pulse_message_sent', handleAutoRefresh);
+
+    if (socket) {
+      socket.on('new_message', handleAutoRefresh);
+      socket.on('user_status_changed', handleAutoRefresh);
+      socket.on('incoming_friend_request', handleAutoRefresh);
+      socket.on('friend_request_accepted', handleAutoRefresh);
+    }
 
     return () => {
-      socket.off('new_message', handleAutoRefresh);
-      socket.off('user_status_changed', handleAutoRefresh);
-      socket.off('incoming_friend_request', handleAutoRefresh);
-      socket.off('friend_request_accepted', handleAutoRefresh);
+      window.removeEventListener('pulse_message_sent', handleAutoRefresh);
+      if (socket) {
+        socket.off('new_message', handleAutoRefresh);
+        socket.off('user_status_changed', handleAutoRefresh);
+        socket.off('incoming_friend_request', handleAutoRefresh);
+        socket.off('friend_request_accepted', handleAutoRefresh);
+      }
     };
   }, [socket]);
 

@@ -77,8 +77,18 @@ function setupSocketIO(io) {
     // Handle sending message via Socket (or HTTP broadcast trigger)
     socket.on('send_message', (data) => {
       const { conversationId, message } = data;
-      // Broadcast to room members including sender (or except sender depending on design)
+      // Broadcast to room members
       io.to(`conv_${conversationId}`).emit('new_message', { conversationId, message });
+
+      // Broadcast to personal user rooms of all members to ensure instant sidebar refresh
+      try {
+        const members = db.prepare('SELECT user_id FROM conversation_members WHERE conversation_id = ?').all(conversationId);
+        members.forEach(m => {
+          io.to(`user_${m.user_id}`).emit('new_message', { conversationId, message });
+        });
+      } catch (err) {
+        console.error('Broadcast to user rooms error:', err);
+      }
     });
 
     // Handle message read status
