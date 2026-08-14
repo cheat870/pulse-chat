@@ -65,6 +65,28 @@ export default function FriendsView({ onStartChat, onBack }) {
     };
   }, [socket]);
 
+  // Live Auto Search on Typing
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const data = await apiRequest(`/users/search?q=${encodeURIComponent(searchQuery.trim())}`);
+        setSearchResults(data.users || []);
+      } catch (err) {
+        console.error('Search error:', err);
+      } finally {
+        setLoading(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   const handleSearch = async (e) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
