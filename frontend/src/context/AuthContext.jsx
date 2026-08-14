@@ -8,18 +8,48 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => localStorage.getItem('pulsechat_token'));
   const [loading, setLoading] = useState(true);
 
+  // Decode user from JWT payload (no server needed)
+  const decodeJwt = (token) => {
+    try {
+      const payload = token.split('.')[1];
+      return JSON.parse(atob(payload));
+    } catch {
+      return null;
+    }
+  };
+
   useEffect(() => {
     async function loadUser() {
       if (!token) {
         setLoading(false);
         return;
       }
+
+      // First: decode token locally to restore session immediately (no network needed)
+      const decoded = decodeJwt(token);
+      if (decoded && decoded.exp * 1000 < Date.now()) {
+        // Token is truly expired — force logout
+        logout();
+        setLoading(false);
+        return;
+      }
+
       try {
         const data = await apiRequest('/auth/me');
         setUser(data.user);
       } catch (err) {
-        console.error('Session restore error:', err);
-        logout();
+        // Only logout on 401 Unauthorized (invalid/revoked token)
+        // Keep session alive on network errors, 500, 503 (server waking up)
+        if (err.status === 401) {
+          console.warn('Token invalid — logging out');
+          logout();
+        } else {
+          console.warn('Server unreachable — keeping session alive:', err.message);
+          // Restore minimal user from JWT payload so app stays usable
+          if (decoded) {
+            setUser({ id: decoded.id, username: decoded.username, avatar_url: null, status_text: '' });
+          }
+        }
       } finally {
         setLoading(false);
       }

@@ -42,13 +42,17 @@ export async function apiRequest(endpoint, method = 'GET', body = null, isFormDa
       data = JSON.parse(text);
     } catch (e) {
       if (!res.ok) {
-        throw new Error(res.status === 404 ? 'Endpoint not found' : 'Server is waking up on Render. Please try again in 10 seconds...');
+        const err = new Error(res.status === 404 ? 'Endpoint not found' : 'Server is waking up on Render. Please try again in 10 seconds...');
+        err.status = res.status;
+        throw err;
       }
       data = { message: text };
     }
 
     if (!res.ok) {
-      throw new Error(data.error || 'API Request failed');
+      const err = new Error(data.error || 'API Request failed');
+      err.status = res.status;
+      throw err;
     }
 
     return data;
