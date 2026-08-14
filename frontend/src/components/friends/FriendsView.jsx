@@ -102,15 +102,19 @@ export default function FriendsView({ onStartChat, onBack }) {
     }
   };
 
-  const handleSendRequest = async (targetUserId) => {
+  const handleSendRequest = async (target) => {
+    const targetUserId = typeof target === 'object' ? target.id : target;
     setActionLoading(prev => ({ ...prev, [targetUserId]: true }));
     try {
-      await apiRequest('/friends/request', 'POST', { targetUserId });
+      const data = await apiRequest('/friends/request', 'POST', { targetUserId });
+      if (socket) {
+        socket.emit('friend_request', { targetUserId, requestId: data.friendshipId });
+      }
       fetchRequests();
       // Re-search to update state
       if (searchQuery.trim()) {
-        const data = await apiRequest(`/users/search?q=${encodeURIComponent(searchQuery.trim())}`);
-        setSearchResults(data.users || []);
+        const res = await apiRequest(`/users/search?q=${encodeURIComponent(searchQuery.trim())}`);
+        setSearchResults(res.users || []);
       }
     } catch (err) {
       alert(err.message);

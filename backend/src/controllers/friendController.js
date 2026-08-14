@@ -4,7 +4,11 @@ const { db } = require('../config/database');
 function sendRequest(req, res) {
   try {
     const senderId = req.user.id;
-    const { targetUserId, targetQuery } = req.body;
+    let { targetUserId, targetQuery } = req.body;
+
+    if (targetUserId && typeof targetUserId === 'object') {
+      targetUserId = targetUserId.id;
+    }
 
     let targetUser = null;
     if (targetUserId) {
