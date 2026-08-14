@@ -69,7 +69,7 @@ function sendRequest(req, res) {
     });
   } catch (err) {
     console.error('Send Friend Request Error:', err);
-    return res.status(500).json({ error: 'Failed to send friend request' });
+    return res.status(500).json({ error: err.message || 'Failed to send friend request' });
   }
 }
 
