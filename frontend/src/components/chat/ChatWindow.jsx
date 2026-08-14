@@ -5,12 +5,14 @@ import { apiRequest } from '../../services/api';
 import { useSocket } from '../../context/SocketContext';
 import { useSound } from '../../context/SoundContext';
 import { useAuth } from '../../context/AuthContext';
+import { useCall } from '../../context/CallContext';
 import { Phone, Video, Info, ArrowLeft, Users, Shield, Circle } from 'lucide-react';
 
 export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) {
   const { socket } = useSocket();
   const { user } = useAuth();
   const { playChime } = useSound();
+  const { startCall } = useCall();
 
   const [conversation, setConversation] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -225,6 +227,34 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
 
         {/* Action Buttons */}
         <div className="flex items-center gap-1">
+          {/* Voice Call — only for direct chats */}
+          {!isGroup && peer && (
+            <button
+              onClick={() => startCall(
+                { id: peer.id, name: peer.username || conversation.name, avatar: peer.avatar_url || conversation.avatarUrl },
+                'voice'
+              )}
+              className="p-2 text-slate-400 hover:text-green-400 hover:bg-slate-800 rounded-xl transition-all"
+              title="Voice Call"
+            >
+              <Phone className="w-5 h-5" />
+            </button>
+          )}
+
+          {/* Video Call — only for direct chats */}
+          {!isGroup && peer && (
+            <button
+              onClick={() => startCall(
+                { id: peer.id, name: peer.username || conversation.name, avatar: peer.avatar_url || conversation.avatarUrl },
+                'video'
+              )}
+              className="p-2 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-xl transition-all"
+              title="Video Call"
+            >
+              <Video className="w-5 h-5" />
+            </button>
+          )}
+
           {isGroup && (
             <button
               onClick={() => onOpenGroupInfo(conversation)}

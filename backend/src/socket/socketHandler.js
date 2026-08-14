@@ -122,7 +122,34 @@ function setupSocketIO(io) {
       });
     });
 
-    // Handle Disconnect
+    // ── WebRTC Call Signaling ─────────────────────────────────────────
+    socket.on('call_request', ({ targetUserId, callType, callerName, callerAvatar, offer }) => {
+      io.to(`user_${targetUserId}`).emit('call_request', {
+        callerId: userId,
+        callerName: callerName || socket.username,
+        callerAvatar,
+        callType: callType || 'voice',
+        offer
+      });
+    });
+
+    socket.on('call_accepted', ({ targetUserId, answer }) => {
+      io.to(`user_${targetUserId}`).emit('call_accepted', { answer });
+    });
+
+    socket.on('call_rejected', ({ targetUserId }) => {
+      io.to(`user_${targetUserId}`).emit('call_rejected', { rejectedByUserId: userId });
+    });
+
+    socket.on('call_ended', ({ targetUserId }) => {
+      io.to(`user_${targetUserId}`).emit('call_ended', { endedByUserId: userId });
+    });
+
+    socket.on('webrtc_ice_candidate', ({ targetUserId, candidate }) => {
+      io.to(`user_${targetUserId}`).emit('webrtc_ice_candidate', { candidate, fromUserId: userId });
+    });
+
+
     socket.on('disconnect', () => {
       console.log(`🔌 User disconnected: ${socket.username} (${userId})`);
       const userSockets = onlineUsers.get(userId);

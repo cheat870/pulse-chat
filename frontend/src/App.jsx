@@ -3,6 +3,8 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { SoundProvider } from './context/SoundContext';
 import { SocketProvider } from './context/SocketContext';
+import { CallProvider } from './context/CallContext';
+import CallModal from './components/call/CallModal';
 import AuthModal from './components/auth/AuthModal';
 import Sidebar from './components/chat/Sidebar';
 import ChatWindow from './components/chat/ChatWindow';
@@ -12,7 +14,7 @@ import GroupInfoModal from './components/group/GroupInfoModal';
 import ProfileModal from './components/profile/ProfileModal';
 import NotificationToast from './components/notifications/NotificationToast';
 import { apiRequest } from './services/api';
-import { MessageSquare, Sparkles, ShieldCheck } from 'lucide-react';
+import { MessageSquare, Sparkles } from 'lucide-react';
 
 function MainApp() {
   const { user, loading } = useAuth();
@@ -52,6 +54,8 @@ function MainApp() {
 
   return (
     <div className="h-screen w-screen flex bg-slate-950 text-slate-100 overflow-hidden font-sans">
+      {/* Global Call Modal */}
+      <CallModal />
       
       {/* Real-time Notification Alerts */}
       <NotificationToast
@@ -151,7 +155,9 @@ export default function App() {
       <AuthProvider>
         <SoundProvider>
           <SocketProvider>
-            <MainApp />
+            <CallProvider>
+              <MainApp />
+            </CallProvider>
           </SocketProvider>
         </SoundProvider>
       </AuthProvider>
