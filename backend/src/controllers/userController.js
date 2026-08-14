@@ -2,7 +2,7 @@ const { db } = require('../config/database');
 
 function searchUsers(req, res) {
   try {
-    const { query } = req.query;
+    const query = req.query.q || req.query.query || '';
     const currentUserId = req.user.id;
 
     if (!query || query.trim().length === 0) {
