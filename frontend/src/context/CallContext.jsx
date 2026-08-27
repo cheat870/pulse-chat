@@ -142,14 +142,23 @@ export function CallProvider({ children }) {
     };
 
     pc.ontrack = (e) => {
-      console.log('⚡ WebRTC ontrack received track:', e.track.kind, e.streams);
+      console.log('⚡ WebRTC ontrack received track:', e.track.kind, e.track.id);
       let stream = remoteStreamRef.current;
       if (!stream) {
-        stream = (e.streams && e.streams[0]) ? e.streams[0] : new MediaStream();
+        stream = new MediaStream();
       }
+      
       if (!stream.getTracks().some(t => t.id === e.track.id)) {
         stream.addTrack(e.track);
       }
+
+      e.track.onunmute = () => {
+        console.log('⚡ WebRTC track onunmute:', e.track.kind);
+        const fresh = new MediaStream(stream.getTracks());
+        remoteStreamRef.current = fresh;
+        setRemoteStream(fresh);
+      };
+
       const updated = new MediaStream(stream.getTracks());
       remoteStreamRef.current = updated;
       setRemoteStream(updated);
@@ -161,7 +170,6 @@ export function CallProvider({ children }) {
         setCallState(prev => prev ? { ...prev, status: 'connected' } : prev);
         stopRingtone();
       }
-      // Note: We do NOT auto-disconnect on transient 'disconnected' states!
     };
 
     pc.oniceconnectionstatechange = () => {
@@ -267,7 +275,10 @@ export function CallProvider({ children }) {
       stream.getTracks().forEach(t => pc.addTrack(t, stream));
 
       await pc.setRemoteDescription(new RTCSessionDescription(current._offer));
-      const answer = await pc.createAnswer();
+      const answer = await pc.createAnswer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: isVideo
+      });
       await pc.setLocalDescription(answer);
 
       socket.emit('call_accepted', { targetUserId: current.peer.id, answer });

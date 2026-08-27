@@ -3,7 +3,7 @@ import { useCall } from '../../context/CallContext';
 import { getMediaUrl } from '../../services/api';
 import {
   Phone, PhoneOff, Video, VideoOff,
-  Mic, MicOff
+  Mic, MicOff, Loader2
 } from 'lucide-react';
 
 export default function CallModal() {
@@ -21,11 +21,15 @@ export default function CallModal() {
   // Helper to attach stream to an element and play
   const attachStream = (el, stream, isMutedElement = false) => {
     if (!el || !stream) return;
-    if (el.srcObject !== stream) {
-      el.srcObject = stream;
+    try {
+      if (el.srcObject !== stream) {
+        el.srcObject = stream;
+      }
+      el.muted = isMutedElement;
+      el.play().catch((err) => console.log('Media play notice:', err.message));
+    } catch (e) {
+      console.warn('Stream attachment error:', e);
     }
-    el.muted = isMutedElement;
-    el.play().catch(() => {});
   };
 
   // Attach local stream on change
@@ -54,6 +58,8 @@ export default function CallModal() {
     ? getMediaUrl(peer.avatar)
     : `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(peerName)}`;
 
+  const hasRemoteVideo = remoteStream && remoteStream.getVideoTracks().length > 0;
+
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
       {/* Hidden audio element to guarantee remote voice audio playback */}
@@ -76,19 +82,39 @@ export default function CallModal() {
         {/* ── VIDEO CALL CONNECTED MODE ── */}
         {isVideo && isConnected ? (
           <>
-            {/* Remote Video (full view) */}
-            <video
-              ref={(el) => {
-                remoteVideoRef.current = el;
-                if (el && remoteStream) attachStream(el, remoteStream, false);
-              }}
-              autoPlay
-              playsInline
-              className="w-full h-full object-cover bg-slate-900"
-            />
+            {/* Remote Video Container */}
+            <div className="relative w-full h-full flex items-center justify-center bg-slate-950 overflow-hidden">
+              <video
+                ref={(el) => {
+                  remoteVideoRef.current = el;
+                  if (el && remoteStream) attachStream(el, remoteStream, false);
+                }}
+                autoPlay
+                playsInline
+                className={`w-full h-full object-cover transition-opacity duration-300 ${hasRemoteVideo ? 'opacity-100' : 'opacity-0'}`}
+              />
+
+              {/* Waiting for remote video stream placeholder */}
+              {!hasRemoteVideo && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-950">
+                  <div className="relative">
+                    <img
+                      src={peerAvatar}
+                      alt={peerName}
+                      className="w-20 h-20 rounded-full object-cover border-2 border-indigo-500 shadow-lg"
+                    />
+                    <div className="absolute inset-0 rounded-full border-2 border-indigo-400 animate-ping opacity-50" />
+                  </div>
+                  <div className="flex items-center gap-2 text-indigo-300 text-xs font-medium">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Connecting camera stream...</span>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Local Video (PiP corner) */}
-            <div className="absolute top-4 right-4 w-32 h-24 sm:w-40 sm:h-28 rounded-2xl overflow-hidden border-2 border-white/20 shadow-xl bg-slate-800">
+            <div className="absolute top-4 right-4 w-32 h-24 sm:w-40 sm:h-28 rounded-2xl overflow-hidden border-2 border-white/20 shadow-xl bg-slate-800 z-10">
               <video
                 ref={(el) => {
                   localVideoRef.current = el;
@@ -108,13 +134,13 @@ export default function CallModal() {
             </div>
 
             {/* Caller Name Tag */}
-            <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/50 rounded-2xl px-3 py-1.5 backdrop-blur-md">
+            <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/50 rounded-2xl px-3 py-1.5 backdrop-blur-md z-10">
               <div className="w-2.5 h-2.5 bg-emerald-400 rounded-full animate-pulse" />
               <span className="text-white text-xs sm:text-sm font-semibold">{peerName}</span>
             </div>
 
             {/* Video Controls Dock */}
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-black/40 px-5 py-2.5 rounded-full backdrop-blur-md border border-white/10">
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-black/50 px-5 py-2.5 rounded-full backdrop-blur-md border border-white/10 z-10">
               <button
                 type="button"
                 onClick={toggleMute}
