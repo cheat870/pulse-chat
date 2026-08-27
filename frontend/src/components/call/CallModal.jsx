@@ -18,25 +18,26 @@ export default function CallModal() {
   const remoteVideoRef = useRef(null);
   const remoteAudioRef = useRef(null);
 
-  // Attach local stream
-  useEffect(() => {
-    if (localVideoRef.current && localStream) {
-      localVideoRef.current.srcObject = localStream;
-      localVideoRef.current.play().catch(() => {});
+  // Helper to attach stream to an element and play
+  const attachStream = (el, stream, isMutedElement = false) => {
+    if (!el || !stream) return;
+    if (el.srcObject !== stream) {
+      el.srcObject = stream;
     }
+    el.muted = isMutedElement;
+    el.play().catch(() => {});
+  };
+
+  // Attach local stream on change
+  useEffect(() => {
+    attachStream(localVideoRef.current, localStream, true);
   }, [localStream, callState?.status]);
 
-  // Attach remote stream
+  // Attach remote stream on change
   useEffect(() => {
     if (remoteStream) {
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = remoteStream;
-        remoteVideoRef.current.play().catch((err) => console.log('Remote video play:', err));
-      }
-      if (remoteAudioRef.current) {
-        remoteAudioRef.current.srcObject = remoteStream;
-        remoteAudioRef.current.play().catch((err) => console.log('Remote audio play:', err));
-      }
+      attachStream(remoteVideoRef.current, remoteStream, false);
+      attachStream(remoteAudioRef.current, remoteStream, false);
     }
   }, [remoteStream, callState?.status]);
 
@@ -55,9 +56,12 @@ export default function CallModal() {
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      {/* Hidden audio element for reliable voice stream playback */}
+      {/* Hidden audio element to guarantee remote voice audio playback */}
       <audio
-        ref={remoteAudioRef}
+        ref={(el) => {
+          remoteAudioRef.current = el;
+          if (el && remoteStream) attachStream(el, remoteStream, false);
+        }}
         autoPlay
         playsInline
         className="hidden"
@@ -74,7 +78,10 @@ export default function CallModal() {
           <>
             {/* Remote Video (full view) */}
             <video
-              ref={remoteVideoRef}
+              ref={(el) => {
+                remoteVideoRef.current = el;
+                if (el && remoteStream) attachStream(el, remoteStream, false);
+              }}
               autoPlay
               playsInline
               className="w-full h-full object-cover bg-slate-900"
@@ -83,7 +90,10 @@ export default function CallModal() {
             {/* Local Video (PiP corner) */}
             <div className="absolute top-4 right-4 w-32 h-24 sm:w-40 sm:h-28 rounded-2xl overflow-hidden border-2 border-white/20 shadow-xl bg-slate-800">
               <video
-                ref={localVideoRef}
+                ref={(el) => {
+                  localVideoRef.current = el;
+                  if (el && localStream) attachStream(el, localStream, true);
+                }}
                 autoPlay
                 playsInline
                 muted

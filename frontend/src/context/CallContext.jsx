@@ -11,7 +11,25 @@ const ICE_SERVERS = {
     { urls: 'stun:stun2.l.google.com:19302' },
     { urls: 'stun:stun3.l.google.com:19302' },
     { urls: 'stun:stun4.l.google.com:19302' },
-    { urls: 'stun:global.stun.twilio.com:3478' }
+    { urls: 'stun:stun.services.mozilla.com' },
+    { urls: 'stun:global.stun.twilio.com:3478' },
+    { urls: 'stun:stun.relay.metered.ca:80' },
+    // OpenRelay Public TURN servers for 4G/LTE NAT Traversal
+    {
+      urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    }
   ]
 };
 
@@ -54,7 +72,7 @@ export function CallProvider({ children }) {
           o.type = 'sine';
           g.gain.setValueAtTime(0, t + i * 0.15);
           g.gain.linearRampToValueAtTime(0.2, t + i * 0.15 + 0.05);
-          g.gain.linearRampToValueAtTime(0, t + i * 0.15 + 0.14);
+          g.gain.linearRampToValueAtTime(0.2, t + i * 0.15 + 0.14);
           o.start(t + i * 0.15);
           o.stop(t + i * 0.15 + 0.15);
         });
@@ -121,10 +139,17 @@ export function CallProvider({ children }) {
     };
 
     pc.ontrack = (e) => {
-      console.log('⚡ WebRTC ontrack received:', e.streams);
-      const stream = (e.streams && e.streams[0]) ? e.streams[0] : new MediaStream([e.track]);
-      remoteStreamRef.current = stream;
-      setRemoteStream(stream);
+      console.log('⚡ WebRTC ontrack received track:', e.track.kind, e.streams);
+      let stream = remoteStreamRef.current;
+      if (!stream) {
+        stream = (e.streams && e.streams[0]) ? e.streams[0] : new MediaStream();
+      }
+      if (!stream.getTracks().some(t => t.id === e.track.id)) {
+        stream.addTrack(e.track);
+      }
+      const updated = new MediaStream(stream.getTracks());
+      remoteStreamRef.current = updated;
+      setRemoteStream(updated);
     };
 
     pc.onconnectionstatechange = () => {
@@ -156,7 +181,12 @@ export function CallProvider({ children }) {
       const isVideo = type === 'video';
       const constraints = {
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-        video: isVideo ? { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' } : false
+        video: isVideo ? {
+          facingMode: 'user',
+          width: { ideal: 640, max: 1280 },
+          height: { ideal: 480, max: 720 },
+          frameRate: { ideal: 30, max: 30 }
+        } : false
       };
 
       let stream;
@@ -164,7 +194,6 @@ export function CallProvider({ children }) {
         stream = await navigator.mediaDevices.getUserMedia(constraints);
       } catch (mediaErr) {
         if (isVideo) {
-          // Fallback to audio only if video camera is unavailable
           console.warn('Video access failed, falling back to audio only');
           stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         } else {
@@ -209,7 +238,12 @@ export function CallProvider({ children }) {
       const isVideo = callState.type === 'video';
       const constraints = {
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-        video: isVideo ? { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' } : false
+        video: isVideo ? {
+          facingMode: 'user',
+          width: { ideal: 640, max: 1280 },
+          height: { ideal: 480, max: 720 },
+          frameRate: { ideal: 30, max: 30 }
+        } : false
       };
 
       let stream;
