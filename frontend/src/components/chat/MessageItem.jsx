@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { getMediaUrl } from '../../services/api';
 import { Play, Pause, Download, MapPin, Smile, Reply, Edit3, Trash2, Copy, Check, CheckCheck, FileText, Film } from 'lucide-react';
 
 export default function MessageItem({ message, onReply, onEdit, onDelete, onReaction }) {
@@ -15,19 +16,24 @@ export default function MessageItem({ message, onReply, onEdit, onDelete, onReac
 
   const audioRef = React.useRef(null);
 
-  const toggleAudio = () => {
+  const toggleAudio = async () => {
     if (!audioRef.current) return;
-    if (isPlayingAudio) {
-      audioRef.current.pause();
+    try {
+      if (isPlayingAudio) {
+        audioRef.current.pause();
+        setIsPlayingAudio(false);
+      } else {
+        await audioRef.current.play();
+        setIsPlayingAudio(true);
+      }
+    } catch (e) {
+      console.error('Audio play error:', e);
       setIsPlayingAudio(false);
-    } else {
-      audioRef.current.play();
-      setIsPlayingAudio(true);
     }
   };
 
   const handleAudioTimeUpdate = () => {
-    if (!audioRef.current) return;
+    if (!audioRef.current || !audioRef.current.duration) return;
     const progress = (audioRef.current.currentTime / audioRef.current.duration) * 100;
     setAudioProgress(progress || 0);
   };
@@ -43,6 +49,8 @@ export default function MessageItem({ message, onReply, onEdit, onDelete, onReac
   const reactionsList = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 
   const isReadByOthers = message.reads && message.reads.some(r => r.user_id !== user.id);
+
+  const mediaSource = getMediaUrl(message.media_url);
 
   return (
     <div className={`flex flex-col mb-4 ${isMe ? 'items-end' : 'items-start'} group relative`}>
@@ -63,7 +71,7 @@ export default function MessageItem({ message, onReply, onEdit, onDelete, onReac
         </div>
       )}
 
-      {/* Main Message Bubble Container */}
+      {/* Message Bubble Body */}
       <div className="relative flex items-center gap-2 max-w-[85%] sm:max-w-md">
         
         {/* Action Menu Trigger (Hover) */}
@@ -104,19 +112,22 @@ export default function MessageItem({ message, onReply, onEdit, onDelete, onReac
 
           {/* VOICE MESSAGE */}
           {message.type === 'VOICE' && (
-            <div className="flex items-center gap-3 min-w-[200px]">
+            <div className="flex items-center gap-3 min-w-[220px]">
               <audio
                 ref={audioRef}
-                src={message.media_url}
+                src={mediaSource}
+                preload="metadata"
                 onTimeUpdate={handleAudioTimeUpdate}
                 onEnded={() => { setIsPlayingAudio(false); setAudioProgress(0); }}
+                onError={(e) => console.error('Audio load error:', e)}
                 className="hidden"
               />
               <button
+                type="button"
                 onClick={toggleAudio}
-                className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-all shadow"
+                className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-all shadow shrink-0"
               >
-                {isPlayingAudio ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+                {isPlayingAudio ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
               </button>
 
               <div className="flex-1 space-y-1">
@@ -135,9 +146,13 @@ export default function MessageItem({ message, onReply, onEdit, onDelete, onReac
           {message.type === 'PHOTO' && (
             <div className="space-y-2">
               <img
-                src={message.media_url}
+                src={mediaSource}
                 alt="Attachment"
                 className="max-h-72 w-full object-cover rounded-xl border border-black/10"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = 'https://placehold.co/400x300?text=Image+Unavailable';
+                }}
               />
               {message.content && <p className="text-sm mt-1">{message.content}</p>}
             </div>
@@ -147,7 +162,7 @@ export default function MessageItem({ message, onReply, onEdit, onDelete, onReac
           {message.type === 'VIDEO' && (
             <div className="space-y-2">
               <video
-                src={message.media_url}
+                src={mediaSource}
                 controls
                 className="max-h-72 w-full rounded-xl border border-black/10"
               />
@@ -164,7 +179,7 @@ export default function MessageItem({ message, onReply, onEdit, onDelete, onReac
                 <span className="text-[10px] opacity-75">{message.file_size ? `${(message.file_size / 1024 / 1024).toFixed(2)} MB` : 'Document'}</span>
               </div>
               <a
-                href={message.media_url}
+                href={mediaSource}
                 download
                 target="_blank"
                 rel="noreferrer"

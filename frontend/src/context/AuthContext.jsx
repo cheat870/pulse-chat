@@ -4,14 +4,31 @@ import { apiRequest } from '../services/api';
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
   const [token, setToken] = useState(() => localStorage.getItem('pulsechat_token'));
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem('pulsechat_user');
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [loading, setLoading] = useState(!user && !!token);
+
+  // Helper to persist user state & localStorage together
+  const persistUser = (userData) => {
+    setUser(userData);
+    if (userData) {
+      localStorage.setItem('pulsechat_user', JSON.stringify(userData));
+    } else {
+      localStorage.removeItem('pulsechat_user');
+    }
+  };
 
   // Decode user from JWT payload (no server needed)
-  const decodeJwt = (token) => {
+  const decodeJwt = (t) => {
     try {
-      const payload = token.split('.')[1];
+      const payload = t.split('.')[1];
       return JSON.parse(atob(payload));
     } catch {
       return null;
@@ -25,30 +42,31 @@ export function AuthProvider({ children }) {
         return;
       }
 
-      // First: decode token locally to restore session immediately (no network needed)
+      // Check token expiration locally
       const decoded = decodeJwt(token);
-      if (decoded && decoded.exp * 1000 < Date.now()) {
+      if (decoded && decoded.exp && decoded.exp * 1000 < Date.now()) {
         // Token is truly expired — force logout
         logout();
         setLoading(false);
         return;
       }
 
+      // If user info is not loaded in state yet, restore minimal from decoded JWT
+      if (!user && decoded) {
+        persistUser({ id: decoded.id, username: decoded.username, avatar_url: null, status_text: '' });
+      }
+
       try {
         const data = await apiRequest('/auth/me');
-        setUser(data.user);
+        if (data && data.user) {
+          persistUser(data.user);
+        }
       } catch (err) {
-        // Only logout on 401 Unauthorized (invalid/revoked token)
-        // Keep session alive on network errors, 500, 503 (server waking up)
         if (err.status === 401) {
           console.warn('Token invalid — logging out');
           logout();
         } else {
-          console.warn('Server unreachable — keeping session alive:', err.message);
-          // Restore minimal user from JWT payload so app stays usable
-          if (decoded) {
-            setUser({ id: decoded.id, username: decoded.username, avatar_url: null, status_text: '' });
-          }
+          console.warn('Server unreachable — keeping saved user session alive:', err.message);
         }
       } finally {
         setLoading(false);
@@ -61,7 +79,7 @@ export function AuthProvider({ children }) {
     const data = await apiRequest('/auth/login', 'POST', { loginId, password });
     localStorage.setItem('pulsechat_token', data.token);
     setToken(data.token);
-    setUser(data.user);
+    persistUser(data.user);
     return data;
   };
 
@@ -69,7 +87,7 @@ export function AuthProvider({ children }) {
     const data = await apiRequest('/auth/register', 'POST', formData, true);
     localStorage.setItem('pulsechat_token', data.token);
     setToken(data.token);
-    setUser(data.user);
+    persistUser(data.user);
     return data;
   };
 
@@ -77,18 +95,19 @@ export function AuthProvider({ children }) {
     const data = await apiRequest('/auth/google', 'POST', googleData);
     localStorage.setItem('pulsechat_token', data.token);
     setToken(data.token);
-    setUser(data.user);
+    persistUser(data.user);
     return data;
   };
 
   const logout = () => {
     localStorage.removeItem('pulsechat_token');
+    localStorage.removeItem('pulsechat_user');
     setToken(null);
     setUser(null);
   };
 
   const updateUserProfile = (updatedUser) => {
-    setUser(updatedUser);
+    persistUser(updatedUser);
   };
 
   return (

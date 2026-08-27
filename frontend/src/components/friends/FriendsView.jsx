@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { apiRequest } from '../../services/api';
+import { apiRequest, getMediaUrl } from '../../services/api';
 import { useSocket } from '../../context/SocketContext';
 import { UserPlus, Users, Mail, Search, Check, X, MessageSquare, Trash2, ShieldCheck, Clock, UserCheck, ArrowLeft } from 'lucide-react';
 
@@ -268,9 +268,13 @@ export default function FriendsView({ onStartChat, onBack }) {
                     <div className="flex items-center gap-3.5">
                       <div className="relative">
                         <img
-                          src={friend.avatar_url}
+                          src={friend.avatar_url ? getMediaUrl(friend.avatar_url) : `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(friend.username)}`}
                           alt={friend.username}
                           className="w-12 h-12 rounded-full object-cover border border-slate-700"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(friend.username)}`;
+                          }}
                         />
                         <span
                           className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-slate-950 ${
@@ -333,7 +337,15 @@ export default function FriendsView({ onStartChat, onBack }) {
                   {incomingRequests.map(req => (
                     <div key={req.requestId} className="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <img src={req.avatar_url} alt={req.username} className="w-11 h-11 rounded-full object-cover border border-slate-700" />
+                        <img
+                          src={req.avatar_url ? getMediaUrl(req.avatar_url) : `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(req.username)}`}
+                          alt={req.username}
+                          className="w-11 h-11 rounded-full object-cover border border-slate-700"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(req.username)}`;
+                          }}
+                        />
                         <div>
                           <h4 className="text-sm font-bold text-white">{req.username}</h4>
                           <span className="text-xs text-slate-400 block">{req.mutualFriends} mutual friends</span>
@@ -381,7 +393,15 @@ export default function FriendsView({ onStartChat, onBack }) {
                   {outgoingRequests.map(req => (
                     <div key={req.requestId} className="p-4 bg-slate-950/40 border border-slate-800/60 rounded-2xl flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <img src={req.avatar_url} alt={req.username} className="w-10 h-10 rounded-full object-cover border border-slate-700" />
+                        <img
+                          src={req.avatar_url ? getMediaUrl(req.avatar_url) : `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(req.username)}`}
+                          alt={req.username}
+                          className="w-10 h-10 rounded-full object-cover border border-slate-700"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(req.username)}`;
+                          }}
+                        />
                         <div>
                           <h4 className="text-sm font-bold text-white">{req.username}</h4>
                           <span className="text-[10px] text-slate-500 flex items-center gap-1">
@@ -435,7 +455,15 @@ export default function FriendsView({ onStartChat, onBack }) {
                 {searchResults.map(user => (
                   <div key={user.id} className="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl flex items-center justify-between">
                     <div className="flex items-center gap-3.5">
-                      <img src={user.avatar_url} alt={user.username} className="w-11 h-11 rounded-full object-cover border border-slate-700" />
+                      <img
+                        src={user.avatar_url ? getMediaUrl(user.avatar_url) : `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user.username)}`}
+                        alt={user.username}
+                        className="w-11 h-11 rounded-full object-cover border border-slate-700"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user.username)}`;
+                        }}
+                      />
                       <div>
                         <h4 className="text-sm font-bold text-white">{user.username}</h4>
                         <p className="text-xs text-slate-400">{user.status_text || user.email}</p>

@@ -42,17 +42,35 @@ export default function VoiceRecorder({ onSendVoice, onCancel }) {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioChunksRef.current = [];
 
-      const mediaRecorder = new MediaRecorder(stream);
+      let mimeType = 'audio/webm';
+      const candidateTypes = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4',
+        'audio/aac',
+        'audio/ogg;codecs=opus',
+        'audio/ogg',
+        'audio/wav'
+      ];
+      for (const t of candidateTypes) {
+        if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) {
+          mimeType = t;
+          break;
+        }
+      }
+
+      const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
+        if (event.data && event.data.size > 0) {
           audioChunksRef.current.push(event.data);
         }
       };
 
       mediaRecorder.onstop = () => {
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const recordedType = mimeType || 'audio/webm';
+        const blob = new Blob(audioChunksRef.current, { type: recordedType });
         const url = URL.createObjectURL(blob);
         setAudioBlob(blob);
         setAudioUrl(url);
@@ -60,7 +78,7 @@ export default function VoiceRecorder({ onSendVoice, onCancel }) {
         stream.getTracks().forEach(track => track.stop());
       };
 
-      mediaRecorder.start();
+      mediaRecorder.start(200);
       setIsRecording(true);
       startTimer();
     } catch (err) {

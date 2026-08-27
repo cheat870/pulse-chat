@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useSound } from '../../context/SoundContext';
 import { useSocket } from '../../context/SocketContext';
-import { apiRequest } from '../../services/api';
+import { apiRequest, getMediaUrl } from '../../services/api';
 import { MessageSquare, Users, UserPlus, Sun, Moon, Volume2, VolumeX, LogOut, Search, Plus, Circle } from 'lucide-react';
 
 export default function Sidebar({ activeConvId, onSelectConv, onOpenFriends, onOpenGroupModal, onOpenProfile }) {
@@ -81,6 +81,10 @@ export default function Sidebar({ activeConvId, onSelectConv, onOpenFriends, onO
     return matchesSearch;
   });
 
+  const userAvatarSrc = user?.avatar_url
+    ? getMediaUrl(user.avatar_url)
+    : `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user?.username || 'user')}`;
+
   return (
     <div className="w-full md:w-80 lg:w-96 h-full bg-slate-950 border-r border-slate-800 flex flex-col overflow-hidden">
       
@@ -89,9 +93,13 @@ export default function Sidebar({ activeConvId, onSelectConv, onOpenFriends, onO
         <div onClick={onOpenProfile} className="flex items-center gap-3 cursor-pointer group">
           <div className="relative">
             <img
-              src={user?.avatar_url}
+              src={userAvatarSrc}
               alt={user?.username}
               className="w-10 h-10 rounded-full object-cover border border-slate-700 group-hover:border-indigo-500 transition-all"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user?.username || 'user')}`;
+              }}
             />
             <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-slate-950" />
           </div>
@@ -221,9 +229,13 @@ export default function Sidebar({ activeConvId, onSelectConv, onOpenFriends, onO
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="relative shrink-0">
                     <img
-                      src={conv.avatarUrl || 'https://api.dicebear.com/7.x/bottts/svg?seed=conv'}
+                      src={conv.avatarUrl ? getMediaUrl(conv.avatarUrl) : `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(conv.name)}`}
                       alt={conv.name}
                       className="w-11 h-11 rounded-full object-cover border border-slate-700/50"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(conv.name)}`;
+                      }}
                     />
                     {conv.type === 'PRIVATE' && peer && (
                       <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-slate-950 ${

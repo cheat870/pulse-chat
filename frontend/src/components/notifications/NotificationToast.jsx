@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { useSocket } from '../../context/SocketContext';
+import { getMediaUrl } from '../../services/api';
 import { MessageSquare, UserPlus, X, ChevronRight } from 'lucide-react';
 
 export default function NotificationToast({ onSelectConversation, onOpenFriends }) {
@@ -10,12 +11,12 @@ export default function NotificationToast({ onSelectConversation, onOpenFriends 
     clearNotification
   } = useSocket();
 
-  // Auto-hide message notification after 5 seconds
+  // Auto-hide message notification after 6 seconds
   useEffect(() => {
     if (messageNotification) {
       const timer = setTimeout(() => {
         clearMessageNotification();
-      }, 5000);
+      }, 6000);
       return () => clearTimeout(timer);
     }
   }, [messageNotification]);
@@ -32,6 +33,10 @@ export default function NotificationToast({ onSelectConversation, onOpenFriends 
 
   if (!messageNotification && !friendRequestNotification) return null;
 
+  const senderAvatarSrc = messageNotification?.senderAvatar
+    ? getMediaUrl(messageNotification.senderAvatar)
+    : `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(messageNotification?.senderName || 'user')}`;
+
   return (
     <div className="fixed top-5 right-5 z-50 flex flex-col gap-3 max-w-sm w-full pointer-events-none">
       
@@ -47,9 +52,13 @@ export default function NotificationToast({ onSelectConversation, onOpenFriends 
           <div className="flex items-center gap-3.5 min-w-0">
             <div className="relative shrink-0">
               <img
-                src={messageNotification.senderAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${messageNotification.senderName}`}
+                src={senderAvatarSrc}
                 alt={messageNotification.senderName}
                 className="w-11 h-11 rounded-full object-cover border-2 border-indigo-500 shadow-md"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(messageNotification.senderName)}`;
+                }}
               />
               <span className="absolute -top-1 -right-1 p-1 bg-indigo-600 rounded-full text-white">
                 <MessageSquare className="w-3 h-3" />

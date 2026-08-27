@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
-import { apiRequest } from '../../services/api';
+import { apiRequest, getMediaUrl } from '../../services/api';
 import { useSocket } from '../../context/SocketContext';
 import { useSound } from '../../context/SoundContext';
 import { useAuth } from '../../context/AuthContext';
@@ -190,9 +190,13 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
           {/* Avatar & Online Dot */}
           <div className="relative">
             <img
-              src={conversation.avatarUrl || 'https://api.dicebear.com/7.x/bottts/svg?seed=group'}
+              src={conversation.avatarUrl ? getMediaUrl(conversation.avatarUrl) : `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(conversation.name)}`}
               alt={conversation.name}
               className="w-10 h-10 rounded-full object-cover border border-slate-700"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(conversation.name)}`;
+              }}
             />
             {!isGroup && peer && (
               <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-slate-900 ${

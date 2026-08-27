@@ -1,4 +1,4 @@
-const getBackendUrl = () => {
+export const getBackendUrl = () => {
   const customUrl = import.meta.env.VITE_API_URL;
   if (customUrl && customUrl.trim()) {
     return customUrl.replace(/\/$/, '');
@@ -8,6 +8,15 @@ const getBackendUrl = () => {
   }
   return '';
 };
+
+export function getMediaUrl(path) {
+  if (!path) return '';
+  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('blob:') || path.startsWith('data:')) {
+    return path;
+  }
+  const backend = getBackendUrl();
+  return `${backend}${path.startsWith('/') ? '' : '/'}${path}`;
+}
 
 const BASE_URL = getBackendUrl() ? `${getBackendUrl()}/api` : '/api';
 

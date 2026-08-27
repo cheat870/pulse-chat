@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { apiRequest } from '../../services/api';
+import { apiRequest, getMediaUrl } from '../../services/api';
 import { User, Mail, Phone, Camera, Save, X } from 'lucide-react';
 
 export default function ProfileModal({ onClose }) {
@@ -10,7 +10,11 @@ export default function ProfileModal({ onClose }) {
   const [statusText, setStatusText] = useState(user?.status_text || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [avatarFile, setAvatarFile] = useState(null);
-  const [avatarPreview, setAvatarPreview] = useState(user?.avatar_url || null);
+  const [avatarPreview, setAvatarPreview] = useState(
+    user?.avatar_url
+      ? getMediaUrl(user.avatar_url)
+      : `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user?.username || 'user')}`
+  );
   const [loading, setLoading] = useState(false);
 
   const handleAvatarChange = (e) => {
