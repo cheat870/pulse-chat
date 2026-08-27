@@ -3,7 +3,7 @@ import { useCall } from '../../context/CallContext';
 import { getMediaUrl } from '../../services/api';
 import {
   Phone, PhoneOff, Video, VideoOff,
-  Mic, MicOff, Loader2
+  Mic, MicOff
 } from 'lucide-react';
 
 export default function CallModal() {
@@ -18,30 +18,39 @@ export default function CallModal() {
   const remoteVideoRef = useRef(null);
   const remoteAudioRef = useRef(null);
 
-  // Helper to attach stream to an element and play
-  const attachStream = (el, stream, isMutedElement = false) => {
+  // Helper to attach stream to video/audio tag
+  const attachStream = (el, stream, isMuted = false) => {
     if (!el || !stream) return;
     try {
       if (el.srcObject !== stream) {
         el.srcObject = stream;
       }
-      el.muted = isMutedElement;
-      el.play().catch((err) => console.log('Media play notice:', err.message));
+      el.muted = isMuted;
+      const playPromise = el.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => console.log('Autoplay handled:', err.message));
+      }
     } catch (e) {
       console.warn('Stream attachment error:', e);
     }
   };
 
-  // Attach local stream on change
+  // Sync local stream
   useEffect(() => {
-    attachStream(localVideoRef.current, localStream, true);
+    if (localVideoRef.current && localStream) {
+      attachStream(localVideoRef.current, localStream, true);
+    }
   }, [localStream, callState?.status]);
 
-  // Attach remote stream on change
+  // Sync remote stream
   useEffect(() => {
     if (remoteStream) {
-      attachStream(remoteVideoRef.current, remoteStream, false);
-      attachStream(remoteAudioRef.current, remoteStream, false);
+      if (remoteVideoRef.current) {
+        attachStream(remoteVideoRef.current, remoteStream, false);
+      }
+      if (remoteAudioRef.current) {
+        attachStream(remoteAudioRef.current, remoteStream, false);
+      }
     }
   }, [remoteStream, callState?.status]);
 
@@ -58,11 +67,9 @@ export default function CallModal() {
     ? getMediaUrl(peer.avatar)
     : `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(peerName)}`;
 
-  const hasRemoteVideo = remoteStream && remoteStream.getVideoTracks().length > 0;
-
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      {/* Hidden audio element to guarantee remote voice audio playback */}
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/85 backdrop-blur-md p-2 sm:p-4">
+      {/* Hidden audio element for audio track playback */}
       <audio
         ref={(el) => {
           remoteAudioRef.current = el;
@@ -75,46 +82,28 @@ export default function CallModal() {
 
       <div className={`relative flex flex-col items-center rounded-3xl overflow-hidden shadow-2xl transition-all duration-300
         ${isVideo && isConnected
-          ? 'w-full h-full max-w-4xl max-h-[85vh] bg-slate-950 border border-slate-800'
+          ? 'w-full max-w-5xl h-[85vh] min-h-[480px] bg-slate-950 border border-slate-800'
           : 'w-80 bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 py-10 px-6'
         }`}
       >
         {/* ── VIDEO CALL CONNECTED MODE ── */}
         {isVideo && isConnected ? (
-          <>
-            {/* Remote Video Container */}
-            <div className="relative w-full h-full flex items-center justify-center bg-slate-950 overflow-hidden">
-              <video
-                ref={(el) => {
-                  remoteVideoRef.current = el;
-                  if (el && remoteStream) attachStream(el, remoteStream, false);
-                }}
-                autoPlay
-                playsInline
-                className={`w-full h-full object-cover transition-opacity duration-300 ${hasRemoteVideo ? 'opacity-100' : 'opacity-0'}`}
-              />
-
-              {/* Waiting for remote video stream placeholder */}
-              {!hasRemoteVideo && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-950">
-                  <div className="relative">
-                    <img
-                      src={peerAvatar}
-                      alt={peerName}
-                      className="w-20 h-20 rounded-full object-cover border-2 border-indigo-500 shadow-lg"
-                    />
-                    <div className="absolute inset-0 rounded-full border-2 border-indigo-400 animate-ping opacity-50" />
-                  </div>
-                  <div className="flex items-center gap-2 text-indigo-300 text-xs font-medium">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Connecting camera stream...</span>
-                  </div>
-                </div>
-              )}
-            </div>
+          <div className="relative w-full h-full flex flex-col items-center justify-center bg-black overflow-hidden">
+            
+            {/* Remote Video (Full Screen background feed) */}
+            <video
+              ref={(el) => {
+                remoteVideoRef.current = el;
+                if (el && remoteStream) attachStream(el, remoteStream, false);
+              }}
+              autoPlay
+              playsInline
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              className="absolute inset-0 w-full h-full object-cover bg-black"
+            />
 
             {/* Local Video (PiP corner) */}
-            <div className="absolute top-4 right-4 w-32 h-24 sm:w-40 sm:h-28 rounded-2xl overflow-hidden border-2 border-white/20 shadow-xl bg-slate-800 z-10">
+            <div className="absolute top-4 right-4 w-32 h-24 sm:w-44 sm:h-32 rounded-2xl overflow-hidden border-2 border-white/30 shadow-2xl bg-slate-900 z-20">
               <video
                 ref={(el) => {
                   localVideoRef.current = el;
@@ -123,8 +112,8 @@ export default function CallModal() {
                 autoPlay
                 playsInline
                 muted
+                style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
                 className="w-full h-full object-cover"
-                style={{ transform: 'scaleX(-1)' }}
               />
               {isCamOff && (
                 <div className="absolute inset-0 bg-slate-800 flex items-center justify-center">
@@ -134,28 +123,28 @@ export default function CallModal() {
             </div>
 
             {/* Caller Name Tag */}
-            <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/50 rounded-2xl px-3 py-1.5 backdrop-blur-md z-10">
+            <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/60 rounded-2xl px-3 py-1.5 backdrop-blur-md border border-white/10 z-20">
               <div className="w-2.5 h-2.5 bg-emerald-400 rounded-full animate-pulse" />
               <span className="text-white text-xs sm:text-sm font-semibold">{peerName}</span>
             </div>
 
             {/* Video Controls Dock */}
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-black/50 px-5 py-2.5 rounded-full backdrop-blur-md border border-white/10 z-10">
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-black/60 px-6 py-3 rounded-full backdrop-blur-xl border border-white/15 shadow-2xl z-20">
               <button
                 type="button"
                 onClick={toggleMute}
                 className={`w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-lg ${
-                  isMuted ? 'bg-rose-600 hover:bg-rose-500' : 'bg-white/20 hover:bg-white/30 text-white'
+                  isMuted ? 'bg-rose-600 hover:bg-rose-500 text-white' : 'bg-white/20 hover:bg-white/30 text-white'
                 }`}
-                title={isMuted ? 'Unmute' : 'Mute'}
+                title={isMuted ? 'Unmute Microphone' : 'Mute Microphone'}
               >
-                {isMuted ? <MicOff className="w-5 h-5 text-white" /> : <Mic className="w-5 h-5 text-white" />}
+                {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
               </button>
 
               <button
                 type="button"
                 onClick={endCall}
-                className="w-14 h-14 rounded-full bg-rose-600 hover:bg-rose-500 flex items-center justify-center shadow-lg shadow-rose-600/40 transition-all text-white"
+                className="w-14 h-14 rounded-full bg-rose-600 hover:bg-rose-500 flex items-center justify-center shadow-lg shadow-rose-600/40 transition-all text-white transform hover:scale-105"
                 title="End Call"
               >
                 <PhoneOff className="w-6 h-6" />
@@ -165,14 +154,14 @@ export default function CallModal() {
                 type="button"
                 onClick={toggleCamera}
                 className={`w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-lg ${
-                  isCamOff ? 'bg-rose-600 hover:bg-rose-500' : 'bg-white/20 hover:bg-white/30 text-white'
+                  isCamOff ? 'bg-rose-600 hover:bg-rose-500 text-white' : 'bg-white/20 hover:bg-white/30 text-white'
                 }`}
                 title={isCamOff ? 'Turn Camera On' : 'Turn Camera Off'}
               >
-                {isCamOff ? <VideoOff className="w-5 h-5 text-white" /> : <Video className="w-5 h-5 text-white" />}
+                {isCamOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
               </button>
             </div>
-          </>
+          </div>
         ) : (
           /* ── VOICE CALL / WAITING SCREEN ── */
           <>
