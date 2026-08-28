@@ -8,8 +8,22 @@ export default function FriendsView({ onStartChat, onBack }) {
   const [activeTab, setActiveTab] = useState('friends'); // 'find', 'requests', 'friends'
 
   // Data States
-  const [friends, setFriends] = useState([]);
-  const [incomingRequests, setIncomingRequests] = useState([]);
+  const [friends, setFriends] = useState(() => {
+    try {
+      const cached = localStorage.getItem('pulsechat_friends_cache');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [incomingRequests, setIncomingRequests] = useState(() => {
+    try {
+      const cached = localStorage.getItem('pulsechat_incoming_reqs_cache');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
   const [outgoingRequests, setOutgoingRequests] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -21,7 +35,10 @@ export default function FriendsView({ onStartChat, onBack }) {
   const fetchFriends = async () => {
     try {
       const data = await apiRequest('/friends');
-      setFriends(data.friends || []);
+      if (data && data.friends) {
+        setFriends(data.friends);
+        localStorage.setItem('pulsechat_friends_cache', JSON.stringify(data.friends));
+      }
     } catch (err) {
       console.error('Failed to load friends:', err);
     }
@@ -31,8 +48,11 @@ export default function FriendsView({ onStartChat, onBack }) {
   const fetchRequests = async () => {
     try {
       const data = await apiRequest('/friends/requests');
-      setIncomingRequests(data.incoming || []);
-      setOutgoingRequests(data.outgoing || []);
+      if (data) {
+        setIncomingRequests(data.incoming || []);
+        setOutgoingRequests(data.outgoing || []);
+        localStorage.setItem('pulsechat_incoming_reqs_cache', JSON.stringify(data.incoming || []));
+      }
     } catch (err) {
       console.error('Failed to load requests:', err);
     }

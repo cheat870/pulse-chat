@@ -15,21 +15,41 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
   const { startCall } = useCall();
 
   const [conversation, setConversation] = useState(null);
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState(() => {
+    try {
+      const cached = localStorage.getItem(`pulsechat_msgs_${conversationId}`);
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
   const [typingUsers, setTypingUsers] = useState(new Set());
   const [replyToMessage, setReplyToMessage] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+
+  // Helper to update messages and save to localStorage
+  const persistMessages = (updater) => {
+    setMessages(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      try {
+        localStorage.setItem(`pulsechat_msgs_${conversationId}`, JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+  };
 
   // Fetch Conversation & Messages
   const loadChat = async () => {
     try {
-      setLoading(true);
       const convsData = await apiRequest('/chats');
-      const currentConv = convsData.conversations.find(c => c.id === conversationId);
-      setConversation(currentConv || null);
+      const currentConv = convsData.conversations?.find(c => c.id === conversationId);
+      if (currentConv) setConversation(currentConv);
 
       const msgData = await apiRequest(`/messages/conversation/${conversationId}`);
-      setMessages(msgData.messages || []);
+      if (msgData && msgData.messages) {
+        setMessages(msgData.messages);
+        localStorage.setItem(`pulsechat_msgs_${conversationId}`, JSON.stringify(msgData.messages));
+      }
     } catch (err) {
       console.error('Failed to load chat:', err);
     } finally {
@@ -39,6 +59,10 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
 
   useEffect(() => {
     if (conversationId) {
+      try {
+        const cached = localStorage.getItem(`pulsechat_msgs_${conversationId}`);
+        if (cached) setMessages(JSON.parse(cached));
+      } catch (e) {}
       loadChat();
     }
   }, [conversationId]);
@@ -51,7 +75,7 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
 
     const handleNewMessage = (data) => {
       if (data.conversationId === conversationId && data.message) {
-        setMessages(prev => {
+        persistMessages(prev => {
           // Deduplicate: skip if message ID already exists (own message added locally)
           if (prev.some(m => m.id === data.message.id)) return prev;
           return [...prev, data.message];
@@ -112,7 +136,7 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
       const res = await apiRequest('/messages/send', 'POST', formData, true);
 
       // Append locally and broadcast
-      setMessages(prev => [...prev, res.message]);
+      persistMessages(prev => [...prev, res.message]);
       if (socket) {
         socket.emit('send_message', { conversationId, message: res.message });
       }
@@ -129,7 +153,7 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
 
     try {
       await apiRequest(`/messages/${message.id}`, 'PUT', { content: newContent.trim() });
-      setMessages(prev => prev.map(m => m.id === message.id ? { ...m, content: newContent.trim(), is_edited: 1 } : m));
+      persistMessages(prev => prev.map(m => m.id === message.id ? { ...m, content: newContent.trim(), is_edited: 1 } : m));
     } catch (err) {
       alert(err.message);
     }
@@ -140,7 +164,7 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
     if (!confirm('Delete this message?')) return;
     try {
       await apiRequest(`/messages/${messageId}`, 'DELETE');
-      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, is_deleted: 1, content: 'This message was deleted', media_url: null } : m));
+      persistMessages(prev => prev.map(m => m.id === messageId ? { ...m, is_deleted: 1, content: 'This message was deleted', media_url: null } : m));
     } catch (err) {
       alert(err.message);
     }
@@ -149,10 +173,19 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
   // Toggle Reaction
   const handleToggleReaction = async (messageId, emoji) => {
     try {
-      await apiRequest(`/messages/${messageId}/reaction`, 'POST', { emoji });
-      loadChat(); // Refresh reactions
+      const res = await apiRequest(`/messages/${messageId}/reactions`, 'POST', { emoji });
+      persistMessages(prev => prev.map(msg => {
+        if (msg.id !== messageId) return msg;
+        let nextReactions = [...(msg.reactions || [])];
+        if (res.action === 'added') {
+          nextReactions.push({ emoji, user_id: user.id, username: user.username });
+        } else {
+          nextReactions = nextReactions.filter(r => !(r.emoji === emoji && r.user_id === user.id));
+        }
+        return { ...msg, reactions: nextReactions };
+      }));
     } catch (err) {
-      console.error('Reaction error:', err);
+      alert(err.message);
     }
   };
 

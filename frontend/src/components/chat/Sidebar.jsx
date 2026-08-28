@@ -12,7 +12,14 @@ export default function Sidebar({ activeConvId, onSelectConv, onOpenFriends, onO
   const { isMuted, toggleMute } = useSound();
   const { socket } = useSocket();
 
-  const [conversations, setConversations] = useState([]);
+  const [conversations, setConversations] = useState(() => {
+    try {
+      const cached = localStorage.getItem('pulsechat_conversations_cache');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
   const [unreadRequestsCount, setUnreadRequestsCount] = useState(0);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('ALL'); // 'ALL', 'PRIVATE', 'GROUP'
@@ -20,7 +27,10 @@ export default function Sidebar({ activeConvId, onSelectConv, onOpenFriends, onO
   const fetchConversations = async () => {
     try {
       const data = await apiRequest('/chats');
-      setConversations(data.conversations || []);
+      if (data && data.conversations) {
+        setConversations(data.conversations);
+        localStorage.setItem('pulsechat_conversations_cache', JSON.stringify(data.conversations));
+      }
     } catch (err) {
       console.error('Failed to load conversations:', err);
     }

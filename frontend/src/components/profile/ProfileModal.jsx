@@ -64,15 +64,23 @@ export default function ProfileModal({ onClose }) {
           {/* Avatar Upload */}
           <div className="flex flex-col items-center justify-center">
             <label className="relative group cursor-pointer">
-              <div className="w-20 h-20 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center overflow-hidden group-hover:border-indigo-500 transition-all">
-                <img src={avatarPreview} alt="User Avatar" className="w-full h-full object-cover" />
+              <div className="w-20 h-20 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center overflow-hidden group-hover:border-indigo-500 transition-all shadow-md">
+                <img
+                  src={avatarPreview || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user?.username || 'user')}`}
+                  alt="User Avatar"
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user?.username || 'user')}`;
+                  }}
+                />
               </div>
               <input type="file" accept="image/*" onChange={handleAvatarChange} className="hidden" />
-              <span className="absolute bottom-0 right-0 p-1.5 bg-indigo-600 text-white rounded-full text-xs shadow-lg">
+              <span className="absolute bottom-0 right-0 p-1.5 bg-indigo-600 text-white rounded-full text-xs shadow-lg group-hover:scale-110 transition-transform">
                 <Camera className="w-3.5 h-3.5" />
               </span>
             </label>
-            <span className="mt-1 text-[11px] text-slate-400">Change Photo</span>
+            <span className="mt-1.5 text-[11px] text-slate-400 font-medium">Change Photo</span>
           </div>
 
           <div>
