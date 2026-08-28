@@ -224,6 +224,127 @@ function initDatabase() {
     );
   `);
 
+  // 15. Stories Table (24h disappearing, Instagram-style)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS stories (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      media_url TEXT NOT NULL,
+      media_type TEXT CHECK(media_type IN ('PHOTO', 'VIDEO')) NOT NULL DEFAULT 'PHOTO',
+      caption TEXT,
+      view_count INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      expires_at TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+  `);
+
+  // 16. Story Views Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS story_views (
+      id TEXT PRIMARY KEY,
+      story_id TEXT NOT NULL,
+      viewer_id TEXT NOT NULL,
+      viewed_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE,
+      FOREIGN KEY (viewer_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE(story_id, viewer_id)
+    );
+  `);
+
+  // 17. Notifications Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      content TEXT NOT NULL,
+      from_user_id TEXT,
+      reference_id TEXT,
+      is_read INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+  `);
+
+  // 18. Message Reactions Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS message_reactions (
+      id TEXT PRIMARY KEY,
+      message_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      emoji TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE(message_id, user_id)
+    );
+  `);
+
+  // 19. Saved Messages (Bookmarks) Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS saved_messages (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      message_id TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
+      UNIQUE(user_id, message_id)
+    );
+  `);
+
+  // 20. Chat Themes Table (per conversation per user)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS chat_themes (
+      id TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      theme_color TEXT DEFAULT 'indigo',
+      wallpaper TEXT DEFAULT 'none',
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE(conversation_id, user_id)
+    );
+  `);
+
+  // 21. Polls Table (for group chats)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS polls (
+      id TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      question TEXT NOT NULL,
+      options TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+  `);
+
+  // 22. Poll Votes Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS poll_votes (
+      id TEXT PRIMARY KEY,
+      poll_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      option_index INTEGER NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (poll_id) REFERENCES polls(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE(poll_id, user_id)
+    );
+  `);
+
+  // Migrations: add new columns to existing tables if they don't exist
+  const userCols = db.prepare("PRAGMA table_info(users)").all().map(c => c.name);
+  if (!userCols.includes('bio')) db.exec("ALTER TABLE users ADD COLUMN bio TEXT DEFAULT ''");
+  if (!userCols.includes('hide_online_status')) db.exec("ALTER TABLE users ADD COLUMN hide_online_status INTEGER DEFAULT 0");
+
+  const msgCols = db.prepare("PRAGMA table_info(messages)").all().map(c => c.name);
+  if (!msgCols.includes('reply_to_id')) db.exec("ALTER TABLE messages ADD COLUMN reply_to_id TEXT");
+
   console.log('✅ SQLite Database Tables verified successfully.');
 }
 

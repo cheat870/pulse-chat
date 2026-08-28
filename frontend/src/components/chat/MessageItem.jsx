@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { getMediaUrl } from '../../services/api';
+import { apiRequest, getMediaUrl } from '../../services/api';
 import AudioWaveform from './AudioWaveform';
-import { Play, Pause, Download, MapPin, Smile, Reply, Edit3, Trash2, Copy, Check, CheckCheck, FileText, Film, Pin } from 'lucide-react';
+import PollMessage from '../group/PollMessage';
+import {
+  Play, Pause, Download, MapPin, Smile, Reply, Edit3, Trash2,
+  Copy, Check, CheckCheck, FileText, Film, Pin, Bookmark, BarChart2
+} from 'lucide-react';
 
 export default function MessageItem({ message, onReply, onEdit, onDelete, onReaction, onPin }) {
   const { user } = useAuth();
@@ -134,6 +138,11 @@ export default function MessageItem({ message, onReply, onEdit, onDelete, onReac
             </div>
           )}
 
+          {/* POLL MESSAGE */}
+          {message.type === 'POLL' && (
+            <PollMessage message={message} />
+          )}
+
           {/* FILE ATTACHMENT */}
           {message.type === 'FILE' && (
             <div className="flex items-center gap-3 p-2.5 bg-black/10 rounded-xl border border-white/10">
@@ -256,6 +265,21 @@ export default function MessageItem({ message, onReply, onEdit, onDelete, onReac
           >
             <Copy className="w-3.5 h-3.5" />
             <span>{copied ? 'Copied!' : 'Copy'}</span>
+          </button>
+          <button
+            onClick={async () => {
+              setShowMenu(false);
+              try {
+                await apiRequest('/bookmarks', 'POST', { messageId: message.id });
+                alert('Saved to bookmarks!');
+              } catch (e) {
+                alert(e.message || 'Already saved');
+              }
+            }}
+            className="w-full px-3 py-2 text-left hover:bg-slate-800 rounded-xl flex items-center gap-2 text-amber-300"
+          >
+            <Bookmark className="w-3.5 h-3.5" />
+            <span>Save Message</span>
           </button>
           {onPin && (
             <button

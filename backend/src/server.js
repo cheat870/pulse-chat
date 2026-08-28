@@ -18,6 +18,13 @@ const pushRoutes = require('./routes/pushRoutes');
 const twoFactorRoutes = require('./routes/twoFactorRoutes');
 const pinSearchRoutes = require('./routes/pinSearchRoutes');
 const postRoutes = require('./routes/postRoutes');
+const storyRoutes = require('./routes/storyRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+const reactionRoutes = require('./routes/reactionRoutes');
+const bookmarkRoutes = require('./routes/bookmarkRoutes');
+const pollRoutes = require('./routes/pollRoutes');
+const themeRoutes = require('./routes/themeRoutes');
+const aiRoutes = require('./routes/aiRoutes');
 const { setupSocketIO } = require('./socket/socketHandler');
 
 const app = express();
@@ -62,6 +69,13 @@ app.use('/api/push', pushRoutes);
 app.use('/api/2fa', twoFactorRoutes);
 app.use('/api/pin', pinSearchRoutes);
 app.use('/api/posts', postRoutes);
+app.use('/api/stories', storyRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/reactions', reactionRoutes);
+app.use('/api/bookmarks', bookmarkRoutes);
+app.use('/api/polls', pollRoutes);
+app.use('/api/themes', themeRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Health Check
 app.get('/api/health', (req, res) => {

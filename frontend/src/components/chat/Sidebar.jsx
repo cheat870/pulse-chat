@@ -4,13 +4,32 @@ import { useTheme } from '../../context/ThemeContext';
 import { useSound } from '../../context/SoundContext';
 import { useSocket } from '../../context/SocketContext';
 import { apiRequest, getMediaUrl } from '../../services/api';
-import { MessageSquare, Users, UserPlus, Sun, Moon, Volume2, VolumeX, LogOut, Search, Plus, Circle, Globe } from 'lucide-react';
+import NotificationCenter from '../notifications/NotificationCenter';
+import {
+  MessageSquare, Users, UserPlus, Sun, Moon, Volume2, VolumeX, LogOut,
+  Search, Plus, Circle, Globe, Bell, Bookmark, Bot, BarChart3, Sparkles
+} from 'lucide-react';
 
-export default function Sidebar({ activeConvId, onSelectConv, onOpenFriends, onOpenFeed, onOpenGroupModal, onOpenProfile, currentView }) {
+export default function Sidebar({
+  activeConvId,
+  onSelectConv,
+  onOpenFriends,
+  onOpenFeed,
+  onOpenSaved,
+  onOpenAI,
+  onOpenAnalytics,
+  onOpenSearch,
+  onOpenGroupModal,
+  onOpenProfile,
+  currentView
+}) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { isMuted, toggleMute } = useSound();
   const { socket } = useSocket();
+
+  const [showNotifs, setShowNotifs] = useState(false);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
   const [conversations, setConversations] = useState(() => {
     try {
@@ -124,7 +143,21 @@ export default function Sidebar({ activeConvId, onSelectConv, onOpenFriends, onO
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 relative">
+          <button
+            onClick={() => setShowNotifs(p => !p)}
+            className="relative p-2 text-slate-400 hover:text-indigo-400 hover:bg-slate-900 rounded-xl transition-all"
+            title="Notifications"
+          >
+            <Bell className="w-4 h-4" />
+            {unreadNotifCount > 0 && (
+              <span className="absolute 1 top-1 right-1 w-2 h-2 bg-rose-500 rounded-full animate-ping" />
+            )}
+          </button>
+
+          {/* Notification Center Popover */}
+          <NotificationCenter isOpen={showNotifs} onClose={() => setShowNotifs(false)} />
+
           <button
             onClick={toggleTheme}
             className="p-2 text-slate-400 hover:text-amber-400 hover:bg-slate-900 rounded-xl transition-all"
@@ -189,6 +222,57 @@ export default function Sidebar({ activeConvId, onSelectConv, onOpenFriends, onO
         >
           <Plus className="w-3.5 h-3.5 text-indigo-400" />
           <span>Group</span>
+        </button>
+      </div>
+
+      {/* Secondary Quick Action Strip */}
+      <div className="px-2.5 py-2 grid grid-cols-4 gap-1 border-b border-slate-800/40 bg-slate-950/40">
+        <button
+          onClick={onOpenAI}
+          className={`py-1.5 px-1 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 transition-all ${
+            currentView === 'ai'
+              ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/40'
+              : 'text-slate-400 hover:text-indigo-400 hover:bg-slate-900'
+          }`}
+          title="PulseBot AI Assistant"
+        >
+          <Bot className="w-3.5 h-3.5 text-indigo-400" />
+          <span>AI Bot</span>
+        </button>
+
+        <button
+          onClick={onOpenSaved}
+          className={`py-1.5 px-1 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 transition-all ${
+            currentView === 'saved'
+              ? 'bg-amber-600/30 text-amber-300 border border-amber-500/40'
+              : 'text-slate-400 hover:text-amber-400 hover:bg-slate-900'
+          }`}
+          title="Saved / Bookmarked Messages"
+        >
+          <Bookmark className="w-3.5 h-3.5 text-amber-400" />
+          <span>Saved</span>
+        </button>
+
+        <button
+          onClick={onOpenAnalytics}
+          className={`py-1.5 px-1 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 transition-all ${
+            currentView === 'analytics'
+              ? 'bg-purple-600/30 text-purple-300 border border-purple-500/40'
+              : 'text-slate-400 hover:text-purple-400 hover:bg-slate-900'
+          }`}
+          title="Chat Analytics & Stats"
+        >
+          <BarChart3 className="w-3.5 h-3.5 text-purple-400" />
+          <span>Stats</span>
+        </button>
+
+        <button
+          onClick={onOpenSearch}
+          className="py-1.5 px-1 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 text-slate-400 hover:text-white hover:bg-slate-900 transition-all"
+          title="Global Search"
+        >
+          <Search className="w-3.5 h-3.5 text-slate-400" />
+          <span>Search</span>
         </button>
       </div>
 

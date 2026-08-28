@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import CreatePostBox from './CreatePostBox';
 import PostCard from './PostCard';
+import StoriesBar from '../stories/StoriesBar';
 import { apiRequest } from '../../services/api';
 import { useSocket } from '../../context/SocketContext';
 import {
@@ -134,6 +135,9 @@ export default function FeedView({ onBack }) {
       {/* Main Feed Scrollable Container */}
       <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-6 space-y-6 max-w-2xl mx-auto w-full">
         
+        {/* 24h Stories Bar */}
+        <StoriesBar />
+
         {/* Create Post Card */}
         <CreatePostBox onPostCreated={(newPost) => setPosts(prev => [newPost, ...prev])} />
 

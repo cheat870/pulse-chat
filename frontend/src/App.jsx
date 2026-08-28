@@ -10,24 +10,31 @@ import Sidebar from './components/chat/Sidebar';
 import ChatWindow from './components/chat/ChatWindow';
 import FeedView from './components/feed/FeedView';
 import FriendsView from './components/friends/FriendsView';
+import ProfilePage from './components/profile/ProfilePage';
+import SavedMessagesView from './components/bookmarks/SavedMessagesView';
+import AIChatView from './components/ai/AIChatView';
+import AnalyticsDashboard from './components/analytics/AnalyticsDashboard';
+import GlobalSearch from './components/search/GlobalSearch';
 import CreateGroupModal from './components/group/CreateGroupModal';
 import GroupInfoModal from './components/group/GroupInfoModal';
 import ProfileModal from './components/profile/ProfileModal';
 import NotificationToast from './components/notifications/NotificationToast';
 import { apiRequest } from './services/api';
-import { MessageSquare, Sparkles } from 'lucide-react';
+import { MessageSquare, Sparkles, Bot, Globe, Bookmark } from 'lucide-react';
 
 function MainApp() {
   const { user, loading } = useAuth();
 
-  // Active View State
-  const [currentView, setCurrentView] = useState('chat'); // 'chat', 'friends', 'feed'
+  // Active View State: 'chat' | 'friends' | 'feed' | 'profile' | 'saved' | 'ai' | 'analytics'
+  const [currentView, setCurrentView] = useState('chat');
   const [activeConvId, setActiveConvId] = useState(null);
+  const [viewProfileUserId, setViewProfileUserId] = useState(null);
 
   // Modal States
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showGroupInfoModal, setShowGroupInfoModal] = useState(null);
+  const [showSearchModal, setShowSearchModal] = useState(false);
 
   if (loading) {
     return (
@@ -42,7 +49,7 @@ function MainApp() {
     return <AuthModal />;
   }
 
-  // Start direct chat from Friends list
+  // Start direct chat from Friends list or Profile
   const handleStartChatFromFriends = async (friendId) => {
     try {
       const res = await apiRequest('/chats/private', 'POST', { targetUserId: friendId });
@@ -52,6 +59,8 @@ function MainApp() {
       alert(err.message || 'Could not start chat');
     }
   };
+
+  const isFullScreenView = activeConvId || currentView !== 'chat';
 
   return (
     <div className="h-screen w-screen flex bg-slate-950 text-slate-100 overflow-hidden font-sans">
@@ -67,8 +76,20 @@ function MainApp() {
         onOpenFriends={() => setCurrentView('friends')}
       />
 
+      {/* Global Search Dialog Modal */}
+      {showSearchModal && (
+        <GlobalSearch
+          onClose={() => setShowSearchModal(false)}
+          onSelectUser={(userId) => {
+            setViewProfileUserId(userId);
+            setCurrentView('profile');
+            setShowSearchModal(false);
+          }}
+        />
+      )}
+
       {/* Sidebar Navigation */}
-      <div className={`${(activeConvId || currentView === 'friends' || currentView === 'feed') ? 'hidden md:flex' : 'flex'} w-full md:w-auto h-full shrink-0`}>
+      <div className={`${isFullScreenView ? 'hidden md:flex' : 'flex'} w-full md:w-auto h-full shrink-0`}>
         <Sidebar
           activeConvId={activeConvId}
           currentView={currentView}
@@ -84,8 +105,24 @@ function MainApp() {
             setActiveConvId(null);
             setCurrentView('feed');
           }}
+          onOpenSaved={() => {
+            setActiveConvId(null);
+            setCurrentView('saved');
+          }}
+          onOpenAI={() => {
+            setActiveConvId(null);
+            setCurrentView('ai');
+          }}
+          onOpenAnalytics={() => {
+            setActiveConvId(null);
+            setCurrentView('analytics');
+          }}
+          onOpenSearch={() => setShowSearchModal(true)}
           onOpenGroupModal={() => setShowGroupModal(true)}
-          onOpenProfile={() => setShowProfileModal(true)}
+          onOpenProfile={() => {
+            setViewProfileUserId(user.id);
+            setCurrentView('profile');
+          }}
         />
       </div>
 
@@ -98,6 +135,18 @@ function MainApp() {
             onStartChat={handleStartChatFromFriends}
             onBack={() => setCurrentView('chat')}
           />
+        ) : currentView === 'profile' ? (
+          <ProfilePage
+            userId={viewProfileUserId || user.id}
+            onBack={() => setCurrentView('chat')}
+            onStartChat={handleStartChatFromFriends}
+          />
+        ) : currentView === 'saved' ? (
+          <SavedMessagesView onBack={() => setCurrentView('chat')} />
+        ) : currentView === 'ai' ? (
+          <AIChatView onBack={() => setCurrentView('chat')} />
+        ) : currentView === 'analytics' ? (
+          <AnalyticsDashboard onBack={() => setCurrentView('chat')} />
         ) : activeConvId ? (
           <ChatWindow
             conversationId={activeConvId}
@@ -110,20 +159,27 @@ function MainApp() {
               <MessageSquare className="w-10 h-10" />
             </div>
             <h2 className="text-2xl font-extrabold text-white font-display">Welcome to PulseChat</h2>
-            <p className="text-sm text-slate-400 max-w-md mt-2 mb-6">
-              Select a conversation from the sidebar, check the News Feed, or explore the Friends Center to start a new chat.
+            <p className="text-xs sm:text-sm text-slate-400 max-w-md mt-2 mb-6">
+              Select a conversation from the sidebar, check the 24h Stories & Social Feed, ask PulseBot AI, or explore the Friends Center.
             </p>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center justify-center gap-3">
               <button
                 onClick={() => setCurrentView('feed')}
-                className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-indigo-600/30 transition-all flex items-center gap-2"
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-indigo-600/30 transition-all flex items-center gap-2"
               >
-                <span>Browse News Feed</span>
-                <Sparkles className="w-4 h-4" />
+                <Globe className="w-4 h-4" />
+                <span>News Feed & Stories</span>
+              </button>
+              <button
+                onClick={() => setCurrentView('ai')}
+                className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-purple-600/30 transition-all flex items-center gap-2"
+              >
+                <Bot className="w-4 h-4" />
+                <span>PulseBot AI</span>
               </button>
               <button
                 onClick={() => setCurrentView('friends')}
-                className="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-slate-200 font-semibold text-xs rounded-xl border border-slate-800 transition-all"
+                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-200 font-semibold text-xs rounded-xl border border-slate-800 transition-all"
               >
                 <span>Friends Center</span>
               </button>
@@ -151,19 +207,12 @@ function MainApp() {
         <GroupInfoModal
           conversation={showGroupInfoModal}
           onClose={() => setShowGroupInfoModal(null)}
-          onGroupUpdated={() => {
-            // Force reload active chat
-            const id = activeConvId;
-            setActiveConvId(null);
-            setTimeout(() => setActiveConvId(id), 50);
-          }}
           onLeaveGroup={() => {
             setActiveConvId(null);
             setShowGroupInfoModal(null);
           }}
         />
       )}
-
     </div>
   );
 }
@@ -172,13 +221,13 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <SoundProvider>
-          <SocketProvider>
+        <SocketProvider>
+          <SoundProvider>
             <CallProvider>
               <MainApp />
             </CallProvider>
-          </SocketProvider>
-        </SoundProvider>
+          </SoundProvider>
+        </SocketProvider>
       </AuthProvider>
     </ThemeProvider>
   );

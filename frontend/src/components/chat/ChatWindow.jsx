@@ -3,12 +3,16 @@ import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import PinnedMessageBar from './PinnedMessageBar';
 import SearchMessagesPanel from './SearchMessagesPanel';
+import ChatThemePanel from './ChatThemePanel';
 import { apiRequest, getMediaUrl } from '../../services/api';
 import { useSocket } from '../../context/SocketContext';
 import { useSound } from '../../context/SoundContext';
 import { useAuth } from '../../context/AuthContext';
 import { useCall } from '../../context/CallContext';
-import { Phone, Video, Info, ArrowLeft, Users, Shield, Circle, Search, Phone as GroupPhone } from 'lucide-react';
+import {
+  Phone, Video, Info, ArrowLeft, Users, Shield, Circle,
+  Search, Palette, BarChart2, Bookmark
+} from 'lucide-react';
 
 export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) {
   const { socket } = useSocket();
@@ -30,6 +34,8 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
   const [loading, setLoading] = useState(false);
   const [pinnedMessages, setPinnedMessages] = useState([]);
   const [showSearch, setShowSearch] = useState(false);
+  const [showThemePanel, setShowThemePanel] = useState(false);
+  const [currentTheme, setCurrentTheme] = useState({ theme_color: 'indigo', wallpaper: 'none' });
   const [isDragOver, setIsDragOver] = useState(false);
   const messageListRef = useRef(null);
 
@@ -323,7 +329,7 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 relative">
           {/* Search Messages */}
           <button
             onClick={() => setShowSearch(s => !s)}
@@ -332,6 +338,24 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
           >
             <Search className="w-5 h-5" />
           </button>
+
+          {/* Chat Theme Customization */}
+          <button
+            onClick={() => setShowThemePanel(t => !t)}
+            className="p-2 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-xl transition-all"
+            title="Chat Wallpaper & Color Theme"
+          >
+            <Palette className="w-5 h-5" />
+          </button>
+
+          {showThemePanel && (
+            <ChatThemePanel
+              conversationId={conversationId}
+              isOpen={showThemePanel}
+              onClose={() => setShowThemePanel(false)}
+              onThemeChange={(th) => setCurrentTheme(th)}
+            />
+          )}
 
           {!isGroup && peer && (
             <>
