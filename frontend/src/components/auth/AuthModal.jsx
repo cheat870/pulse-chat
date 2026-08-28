@@ -7,10 +7,22 @@ export default function AuthModal() {
   const [isLogin, setIsLogin] = useState(true);
 
   // Form State
-  const [loginId, setLoginId] = useState('');
+  const [loginId, setLoginId] = useState(() => {
+    try {
+      return localStorage.getItem('pulsechat_remembered_email') || '';
+    } catch {
+      return '';
+    }
+  });
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => {
+    try {
+      return localStorage.getItem('pulsechat_remembered_email') || '';
+    } catch {
+      return '';
+    }
+  });
   const [phone, setPhone] = useState('');
   const [statusText, setStatusText] = useState('Available');
   const [avatarFile, setAvatarFile] = useState(null);
@@ -37,11 +49,17 @@ export default function AuthModal() {
         if (!loginId || !password) {
           throw new Error('Please fill in all required fields');
         }
+        try {
+          localStorage.setItem('pulsechat_remembered_email', loginId.trim());
+        } catch (e) {}
         await login(loginId, password);
       } else {
         if (!username || !email || !password) {
           throw new Error('Username, email, and password are required');
         }
+        try {
+          localStorage.setItem('pulsechat_remembered_email', email.trim());
+        } catch (e) {}
         const formData = new FormData();
         formData.append('username', username);
         formData.append('email', email);
