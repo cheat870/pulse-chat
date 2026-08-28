@@ -151,7 +151,7 @@ export default function Sidebar({
           >
             <Bell className="w-4 h-4" />
             {unreadNotifCount > 0 && (
-              <span className="absolute 1 top-1 right-1 w-2 h-2 bg-rose-500 rounded-full animate-ping" />
+              <span className="absolute top-1 right-1 w-2 h-2 bg-rose-500 rounded-full animate-ping" />
             )}
           </button>
 
