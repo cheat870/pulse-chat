@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { apiRequest, getMediaUrl } from '../../services/api';
-import { User, Mail, Phone, Camera, Save, X } from 'lucide-react';
+import TwoFactorSetup from '../auth/TwoFactorSetup';
+import { User, Mail, Phone, Camera, Save, X, Shield } from 'lucide-react';
 
 export default function ProfileModal({ onClose }) {
   const { user, updateUserProfile } = useAuth();
@@ -15,6 +16,7 @@ export default function ProfileModal({ onClose }) {
       ? getMediaUrl(user.avatar_url)
       : `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user?.username || 'user')}`
   );
+  const [show2FAModal, setShow2FAModal] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleAvatarChange = (e) => {
@@ -46,8 +48,8 @@ export default function ProfileModal({ onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl glass-panel space-y-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl glass-panel space-y-4 max-h-[90vh] overflow-y-auto">
         
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-bold text-white flex items-center gap-2 font-display">
@@ -124,6 +126,26 @@ export default function ProfileModal({ onClose }) {
             />
           </div>
 
+          {/* Security & 2FA Section */}
+          <div className="pt-2 border-t border-slate-800">
+            <div className="flex items-center justify-between p-3 bg-slate-950/60 border border-slate-800 rounded-2xl">
+              <div className="flex items-center gap-2.5">
+                <Shield className="w-4 h-4 text-indigo-400" />
+                <div>
+                  <p className="text-xs font-semibold text-white">Two-Factor Authentication</p>
+                  <p className="text-[10px] text-slate-400">Protect account with Authenticator app</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShow2FAModal(true)}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-indigo-600 text-slate-200 hover:text-white text-xs font-semibold rounded-xl transition-all shadow"
+              >
+                Configure
+              </button>
+            </div>
+          </div>
+
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
@@ -141,9 +163,12 @@ export default function ProfileModal({ onClose }) {
               <span>{loading ? 'Saving...' : 'Save Changes'}</span>
             </button>
           </div>
-
         </form>
       </div>
+
+      {show2FAModal && (
+        <TwoFactorSetup onClose={() => setShow2FAModal(false)} />
+      )}
     </div>
   );
 }

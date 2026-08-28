@@ -122,6 +122,65 @@ function initDatabase() {
     );
   `);
 
+  // 8. Pinned Messages Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS pinned_messages (
+      id TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL,
+      message_id TEXT NOT NULL,
+      pinned_by_id TEXT NOT NULL,
+      pinned_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+      FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
+      FOREIGN KEY (pinned_by_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE(conversation_id, message_id)
+    );
+  `);
+
+  // 9. Web Push Subscriptions Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      endpoint TEXT NOT NULL,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE(user_id, endpoint)
+    );
+  `);
+
+  // 10. TOTP 2FA Secrets Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS totp_secrets (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL UNIQUE,
+      secret TEXT NOT NULL,
+      is_enabled INTEGER DEFAULT 0,
+      backup_codes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+  `);
+
+  // Add is_enabled_2fa column to users if not exists (migration safe)
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN is_2fa_enabled INTEGER DEFAULT 0;`);
+  } catch (e) { /* column already exists */ }
+
+  // 11. Message Search FTS (Full-Text Search)
+  db.exec(`
+    CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+      message_id UNINDEXED,
+      conversation_id UNINDEXED,
+      content,
+      sender_id UNINDEXED,
+      content='',
+      contentless_delete=1
+    );
+  `);
+
   console.log('✅ SQLite Database Tables verified successfully.');
 }
 

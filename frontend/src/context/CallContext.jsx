@@ -328,6 +328,136 @@ export function CallProvider({ children }) {
     }
   };
 
+  // ── Screen Share ──────────────────────────────────────────────────────
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const screenStreamRef = useRef(null);
+
+  const toggleScreenShare = async () => {
+    const current = callStateRef.current;
+    if (!current || current.status !== 'connected') return;
+
+    if (!isScreenSharing) {
+      try {
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: { cursor: 'always' },
+          audio: false
+        });
+        screenStreamRef.current = screenStream;
+        const screenTrack = screenStream.getVideoTracks()[0];
+
+        // Replace video track in peer connection
+        if (pcRef.current) {
+          const sender = pcRef.current.getSenders().find(s => s.track?.kind === 'video');
+          if (sender) {
+            await sender.replaceTrack(screenTrack);
+          }
+        }
+
+        // Also replace in local stream for preview
+        const localStream = localStreamRef.current;
+        if (localStream) {
+          localStream.getVideoTracks().forEach(t => localStream.removeTrack(t));
+          localStream.addTrack(screenTrack);
+          setLocalStream(new MediaStream(localStream.getTracks()));
+        }
+
+        screenTrack.onended = () => {
+          setIsScreenSharing(false);
+          _restoreCameraTrack(current.peer?.id);
+        };
+
+        setIsScreenSharing(true);
+        if (socket && current.peer?.id) {
+          socket.emit('screen_share_start', { targetUserId: current.peer.id });
+        }
+      } catch (err) {
+        console.warn('Screen share failed:', err.message);
+      }
+    } else {
+      _restoreCameraTrack(current.peer?.id);
+    }
+  };
+
+  const _restoreCameraTrack = async (targetUserId) => {
+    try {
+      const camStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: false
+      });
+      const camTrack = camStream.getVideoTracks()[0];
+
+      if (pcRef.current) {
+        const sender = pcRef.current.getSenders().find(s => s.track?.kind === 'video');
+        if (sender) await sender.replaceTrack(camTrack);
+      }
+
+      if (localStreamRef.current) {
+        localStreamRef.current.getVideoTracks().forEach(t => {
+          t.stop();
+          localStreamRef.current.removeTrack(t);
+        });
+        localStreamRef.current.addTrack(camTrack);
+        setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
+      }
+
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach(t => t.stop());
+        screenStreamRef.current = null;
+      }
+
+      setIsScreenSharing(false);
+      if (socket && targetUserId) {
+        socket.emit('screen_share_stop', { targetUserId });
+      }
+    } catch (err) {
+      console.warn('Restore camera failed:', err.message);
+    }
+  };
+
+  // ── Group Call State ──────────────────────────────────────────────────
+  const [groupCallState, setGroupCallState] = useState(null);
+  // groupCallState: { conversationId, type, participants: [{ userId, username, stream, isMuted, isCamOff }] }
+  const groupPCsRef = useRef({}); // Map userId -> RTCPeerConnection
+
+  const startGroupCall = async (conversationId, members, type = 'voice') => {
+    try {
+      const isVideo = type === 'video';
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        video: isVideo ? { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } : false
+      });
+      localStreamRef.current = stream;
+      setLocalStream(stream);
+
+      setGroupCallState({
+        conversationId,
+        type,
+        participants: [{ userId: user.id, username: user.username, stream, isMuted: false, isCamOff: false }]
+      });
+
+      if (socket) {
+        socket.emit('group_call_join', { conversationId, callType: type });
+      }
+    } catch (err) {
+      console.error('Group call start error:', err);
+      alert('Could not access microphone/camera.');
+    }
+  };
+
+  const leaveGroupCall = () => {
+    if (groupCallState?.conversationId && socket) {
+      socket.emit('group_call_leave', { conversationId: groupCallState.conversationId });
+    }
+    Object.values(groupPCsRef.current).forEach(pc => { try { pc.close(); } catch(e){} });
+    groupPCsRef.current = {};
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(t => t.stop());
+      localStreamRef.current = null;
+    }
+    setLocalStream(null);
+    setGroupCallState(null);
+  };
+
   // ── Socket Event Handlers (Bound Once Per Socket) ─────────────────────
   useEffect(() => {
     if (!socket) return;
@@ -381,11 +511,105 @@ export function CallProvider({ children }) {
       }
     };
 
+    const handleScreenShareStart = ({ fromUserId }) => {
+      console.log('📺 Peer started screen sharing');
+      setCallState(prev => prev ? { ...prev, peerIsScreenSharing: true } : prev);
+    };
+
+    const handleScreenShareStop = ({ fromUserId }) => {
+      console.log('📺 Peer stopped screen sharing');
+      setCallState(prev => prev ? { ...prev, peerIsScreenSharing: false } : prev);
+    };
+
+    // Group Call handlers
+    const handleGroupPeerJoined = async ({ userId: peerId, username }) => {
+      if (!localStreamRef.current) return;
+      const pc = new RTCPeerConnection(ICE_SERVERS);
+      groupPCsRef.current[peerId] = pc;
+
+      localStreamRef.current.getTracks().forEach(t => pc.addTrack(t, localStreamRef.current));
+
+      pc.onicecandidate = (e) => {
+        if (e.candidate) socket.emit('group_call_ice', { targetUserId: peerId, candidate: e.candidate });
+      };
+
+      pc.ontrack = (e) => {
+        const stream = new MediaStream();
+        e.streams[0]?.getTracks().forEach(t => stream.addTrack(t));
+        setGroupCallState(prev => {
+          if (!prev) return prev;
+          const existing = prev.participants.find(p => p.userId === peerId);
+          if (existing) {
+            return { ...prev, participants: prev.participants.map(p => p.userId === peerId ? { ...p, stream } : p) };
+          }
+          return { ...prev, participants: [...prev.participants, { userId: peerId, username, stream, isMuted: false, isCamOff: false }] };
+        });
+      };
+
+      const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+      await pc.setLocalDescription(offer);
+      socket.emit('group_call_offer', { targetUserId: peerId, offer, conversationId: groupCallState?.conversationId });
+    };
+
+    const handleGroupOffer = async ({ fromUserId, fromUsername, offer }) => {
+      const pc = new RTCPeerConnection(ICE_SERVERS);
+      groupPCsRef.current[fromUserId] = pc;
+
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach(t => pc.addTrack(t, localStreamRef.current));
+      }
+
+      pc.onicecandidate = (e) => {
+        if (e.candidate) socket.emit('group_call_ice', { targetUserId: fromUserId, candidate: e.candidate });
+      };
+
+      pc.ontrack = (e) => {
+        const stream = new MediaStream();
+        e.streams[0]?.getTracks().forEach(t => stream.addTrack(t));
+        setGroupCallState(prev => {
+          if (!prev) return prev;
+          const exists = prev.participants.find(p => p.userId === fromUserId);
+          if (exists) return { ...prev, participants: prev.participants.map(p => p.userId === fromUserId ? { ...p, stream } : p) };
+          return { ...prev, participants: [...prev.participants, { userId: fromUserId, username: fromUsername, stream, isMuted: false, isCamOff: false }] };
+        });
+      };
+
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await pc.createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+      await pc.setLocalDescription(answer);
+      socket.emit('group_call_answer', { targetUserId: fromUserId, answer });
+    };
+
+    const handleGroupAnswer = async ({ fromUserId, answer }) => {
+      const pc = groupPCsRef.current[fromUserId];
+      if (pc) await pc.setRemoteDescription(new RTCSessionDescription(answer));
+    };
+
+    const handleGroupIce = async ({ fromUserId, candidate }) => {
+      const pc = groupPCsRef.current[fromUserId];
+      if (pc && candidate) {
+        try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch(e){}
+      }
+    };
+
+    const handleGroupPeerLeft = ({ userId: peerId }) => {
+      const pc = groupPCsRef.current[peerId];
+      if (pc) { try { pc.close(); } catch(e){} delete groupPCsRef.current[peerId]; }
+      setGroupCallState(prev => prev ? { ...prev, participants: prev.participants.filter(p => p.userId !== peerId) } : prev);
+    };
+
     socket.on('call_request', handleCallRequest);
     socket.on('call_accepted', handleCallAccepted);
     socket.on('call_rejected', handleCallRejected);
     socket.on('call_ended', handleCallEnded);
     socket.on('webrtc_ice_candidate', handleIceCandidate);
+    socket.on('screen_share_start', handleScreenShareStart);
+    socket.on('screen_share_stop', handleScreenShareStop);
+    socket.on('group_call_peer_joined', handleGroupPeerJoined);
+    socket.on('group_call_offer', handleGroupOffer);
+    socket.on('group_call_answer', handleGroupAnswer);
+    socket.on('group_call_ice', handleGroupIce);
+    socket.on('group_call_peer_left', handleGroupPeerLeft);
 
     return () => {
       socket.off('call_request', handleCallRequest);
@@ -393,6 +617,13 @@ export function CallProvider({ children }) {
       socket.off('call_rejected', handleCallRejected);
       socket.off('call_ended', handleCallEnded);
       socket.off('webrtc_ice_candidate', handleIceCandidate);
+      socket.off('screen_share_start', handleScreenShareStart);
+      socket.off('screen_share_stop', handleScreenShareStop);
+      socket.off('group_call_peer_joined', handleGroupPeerJoined);
+      socket.off('group_call_offer', handleGroupOffer);
+      socket.off('group_call_answer', handleGroupAnswer);
+      socket.off('group_call_ice', handleGroupIce);
+      socket.off('group_call_peer_left', handleGroupPeerLeft);
     };
   }, [socket]);
 
@@ -400,8 +631,11 @@ export function CallProvider({ children }) {
     <CallContext.Provider value={{
       callState, localStream, remoteStream,
       isMuted, isCamOff,
+      isScreenSharing,
+      groupCallState,
       startCall, acceptCall, rejectCall, endCall,
-      toggleMute, toggleCamera
+      toggleMute, toggleCamera, toggleScreenShare,
+      startGroupCall, leaveGroupCall
     }}>
       {children}
     </CallContext.Provider>

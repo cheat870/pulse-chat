@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import VoiceRecorder from './VoiceRecorder';
 import LocationPickerModal from './LocationPickerModal';
+import GifPicker from './GifPicker';
 import { Send, Paperclip, Mic, Smile, Image, Video, FileText, MapPin, X } from 'lucide-react';
 
 export default function MessageInput({ onSendMessage, onTyping, replyToMessage, onCancelReply }) {
@@ -8,6 +9,7 @@ export default function MessageInput({ onSendMessage, onTyping, replyToMessage, 
   const [showAttachments, setShowAttachments] = useState(false);
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [showGifPicker, setShowGifPicker] = useState(false);
   const [filePreview, setFilePreview] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
 
@@ -189,8 +191,16 @@ export default function MessageInput({ onSendMessage, onTyping, replyToMessage, 
             className="hidden"
           />
 
-          {/* Quick Emoji Strip */}
+          {/* Quick Emoji Strip & GIF Picker */}
           <div className="hidden md:flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={() => setShowGifPicker(g => !g)}
+              className={`p-1.5 rounded-lg text-xs font-bold transition-all ${showGifPicker ? 'bg-indigo-600 text-white' : 'hover:bg-slate-800 text-slate-400 hover:text-white'}`}
+              title="Search & Send GIFs"
+            >
+              GIF
+            </button>
             {quickEmojis.map(emoji => (
               <button
                 key={emoji}
@@ -235,6 +245,22 @@ export default function MessageInput({ onSendMessage, onTyping, replyToMessage, 
           )}
 
         </div>
+      )}
+
+      {/* GIF Picker Modal */}
+      {showGifPicker && (
+        <GifPicker
+          onSelect={(gif) => {
+            onSendMessage({
+              type: 'GIF',
+              content: gif.url,
+              replyToId: replyToMessage?.id
+            });
+            setShowGifPicker(false);
+            if (onCancelReply) onCancelReply();
+          }}
+          onClose={() => setShowGifPicker(false)}
+        />
       )}
 
       {/* Location Picker Modal */}

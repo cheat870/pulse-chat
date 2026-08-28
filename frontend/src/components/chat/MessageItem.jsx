@@ -1,42 +1,17 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { getMediaUrl } from '../../services/api';
-import { Play, Pause, Download, MapPin, Smile, Reply, Edit3, Trash2, Copy, Check, CheckCheck, FileText, Film } from 'lucide-react';
+import AudioWaveform from './AudioWaveform';
+import { Play, Pause, Download, MapPin, Smile, Reply, Edit3, Trash2, Copy, Check, CheckCheck, FileText, Film, Pin } from 'lucide-react';
 
-export default function MessageItem({ message, onReply, onEdit, onDelete, onReaction }) {
+export default function MessageItem({ message, onReply, onEdit, onDelete, onReaction, onPin }) {
   const { user } = useAuth();
   const isMe = message.sender_id === user.id;
 
   // Media & Player States
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-  const [audioProgress, setAudioProgress] = useState(0);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [copied, setCopied] = useState(false);
-
-  const audioRef = React.useRef(null);
-
-  const toggleAudio = async () => {
-    if (!audioRef.current) return;
-    try {
-      if (isPlayingAudio) {
-        audioRef.current.pause();
-        setIsPlayingAudio(false);
-      } else {
-        await audioRef.current.play();
-        setIsPlayingAudio(true);
-      }
-    } catch (e) {
-      console.error('Audio play error:', e);
-      setIsPlayingAudio(false);
-    }
-  };
-
-  const handleAudioTimeUpdate = () => {
-    if (!audioRef.current || !audioRef.current.duration) return;
-    const progress = (audioRef.current.currentTime / audioRef.current.duration) * 100;
-    setAudioProgress(progress || 0);
-  };
 
   const handleCopyText = () => {
     if (message.content) {
@@ -49,8 +24,11 @@ export default function MessageItem({ message, onReply, onEdit, onDelete, onReac
   const reactionsList = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 
   const isReadByOthers = message.reads && message.reads.some(r => r.user_id !== user.id);
+  const otherReads = (message.reads || []).filter(r => r.user_id !== user.id);
 
-  const mediaSource = getMediaUrl(message.media_url);
+  const mediaSource = message.media_url?.startsWith('http')
+    ? message.media_url
+    : getMediaUrl(message.media_url);
 
   return (
     <div className={`flex flex-col mb-4 ${isMe ? 'items-end' : 'items-start'} group relative`}>
@@ -98,7 +76,7 @@ export default function MessageItem({ message, onReply, onEdit, onDelete, onReac
           </button>
         </div>
 
-        {/* Message Bubble Body */}
+        {/* Bubble */}
         <div className={`p-3.5 shadow-md transition-all ${
           isMe ? 'chat-bubble-sent' : 'chat-bubble-received'
         } ${message.is_deleted ? 'italic opacity-60' : ''}`}>
@@ -110,35 +88,21 @@ export default function MessageItem({ message, onReply, onEdit, onDelete, onReac
             </p>
           )}
 
-          {/* VOICE MESSAGE */}
-          {message.type === 'VOICE' && (
-            <div className="flex items-center gap-3 min-w-[220px]">
-              <audio
-                ref={audioRef}
-                src={mediaSource}
-                preload="metadata"
-                onTimeUpdate={handleAudioTimeUpdate}
-                onEnded={() => { setIsPlayingAudio(false); setAudioProgress(0); }}
-                onError={(e) => console.error('Audio load error:', e)}
-                className="hidden"
+          {/* GIF MESSAGE */}
+          {message.type === 'GIF' && (
+            <div className="space-y-1">
+              <img
+                src={mediaSource || message.content}
+                alt="GIF"
+                className="max-h-64 rounded-xl object-cover w-full shadow"
               />
-              <button
-                type="button"
-                onClick={toggleAudio}
-                className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-all shadow shrink-0"
-              >
-                {isPlayingAudio ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
-              </button>
+            </div>
+          )}
 
-              <div className="flex-1 space-y-1">
-                <div className="h-1.5 bg-black/20 rounded-full overflow-hidden">
-                  <div className="h-full bg-white transition-all" style={{ width: `${audioProgress}%` }} />
-                </div>
-                <div className="flex justify-between text-[10px] font-mono opacity-80">
-                  <span>Voice Note</span>
-                  <span>{message.duration ? `${Math.round(message.duration)}s` : '0:00'}</span>
-                </div>
-              </div>
+          {/* VOICE MESSAGE (Audio Waveform) */}
+          {message.type === 'VOICE' && (
+            <div className="min-w-[240px]">
+              <AudioWaveform mode="play" audioSrc={mediaSource} barCount={35} />
             </div>
           )}
 
@@ -234,6 +198,21 @@ export default function MessageItem({ message, onReply, onEdit, onDelete, onReac
         </div>
       </div>
 
+      {/* Seen Avatars (Telegram/Messenger style) */}
+      {isMe && otherReads.length > 0 && (
+        <div className="flex items-center -space-x-1.5 mt-1 mr-1">
+          {otherReads.slice(0, 4).map((r) => (
+            <img
+              key={r.user_id}
+              src={`https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(r.user_id)}`}
+              alt="Seen by"
+              title="Seen"
+              className="w-3.5 h-3.5 rounded-full border border-slate-900 shadow-sm"
+            />
+          ))}
+        </div>
+      )}
+
       {/* Reactions Chip Display */}
       {message.reactions && message.reactions.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-1 px-1">
@@ -270,7 +249,7 @@ export default function MessageItem({ message, onReply, onEdit, onDelete, onReac
 
       {/* Popover Context Menu */}
       {showMenu && (
-        <div className="absolute top-8 z-20 w-36 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-1 text-xs text-slate-200 glass-panel">
+        <div className="absolute top-8 z-20 w-40 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-1 text-xs text-slate-200 glass-panel">
           <button
             onClick={() => { handleCopyText(); setShowMenu(false); }}
             className="w-full px-3 py-2 text-left hover:bg-slate-800 rounded-xl flex items-center gap-2"
@@ -278,6 +257,15 @@ export default function MessageItem({ message, onReply, onEdit, onDelete, onReac
             <Copy className="w-3.5 h-3.5" />
             <span>{copied ? 'Copied!' : 'Copy'}</span>
           </button>
+          {onPin && (
+            <button
+              onClick={() => { onPin(message.id); setShowMenu(false); }}
+              className="w-full px-3 py-2 text-left hover:bg-slate-800 rounded-xl flex items-center gap-2 text-indigo-300"
+            >
+              <Pin className="w-3.5 h-3.5" />
+              <span>Pin Message</span>
+            </button>
+          )}
           {isMe && message.type === 'TEXT' && (
             <button
               onClick={() => { onEdit(message); setShowMenu(false); }}

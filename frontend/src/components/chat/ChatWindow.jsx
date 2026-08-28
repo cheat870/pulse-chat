@@ -1,12 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
+import PinnedMessageBar from './PinnedMessageBar';
+import SearchMessagesPanel from './SearchMessagesPanel';
 import { apiRequest, getMediaUrl } from '../../services/api';
 import { useSocket } from '../../context/SocketContext';
 import { useSound } from '../../context/SoundContext';
 import { useAuth } from '../../context/AuthContext';
 import { useCall } from '../../context/CallContext';
-import { Phone, Video, Info, ArrowLeft, Users, Shield, Circle } from 'lucide-react';
+import { Phone, Video, Info, ArrowLeft, Users, Shield, Circle, Search, Phone as GroupPhone } from 'lucide-react';
 
 export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) {
   const { socket } = useSocket();
@@ -26,6 +28,11 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
   const [typingUsers, setTypingUsers] = useState(new Set());
   const [replyToMessage, setReplyToMessage] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [pinnedMessages, setPinnedMessages] = useState([]);
+  const [showSearch, setShowSearch] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const messageListRef = useRef(null);
+
 
   // Helper to update messages and save to localStorage
   const persistMessages = (updater) => {
@@ -64,8 +71,60 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
         if (cached) setMessages(JSON.parse(cached));
       } catch (e) {}
       loadChat();
+      loadPinnedMessages();
     }
   }, [conversationId]);
+
+  // Load pinned messages
+  const loadPinnedMessages = async () => {
+    try {
+      const data = await apiRequest(`/pin/conversation/${conversationId}/pinned`);
+      setPinnedMessages(data.pinnedMessages || []);
+    } catch (e) {}
+  };
+
+  // Pin / Unpin
+  const handlePin = async (messageId) => {
+    try {
+      await apiRequest(`/pin/${messageId}/pin`, 'POST');
+      await loadPinnedMessages();
+    } catch (e) { console.error('Pin error:', e); }
+  };
+
+  const handleUnpin = async (messageId) => {
+    try {
+      await apiRequest(`/pin/${messageId}/pin`, 'DELETE');
+      await loadPinnedMessages();
+    } catch (e) { console.error('Unpin error:', e); }
+  };
+
+  // Jump to message by ID
+  const handleJumpToMessage = (messageId) => {
+    const el = document.getElementById(`msg-${messageId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('ring-2', 'ring-indigo-500', 'ring-offset-2', 'ring-offset-slate-900');
+      setTimeout(() => el.classList.remove('ring-2', 'ring-indigo-500', 'ring-offset-2', 'ring-offset-slate-900'), 2000);
+    }
+  };
+
+  // Drag and Drop handlers
+  const handleDragOver = (e) => { e.preventDefault(); setIsDragOver(true); };
+  const handleDragLeave = (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setIsDragOver(false); };
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (!files.length) return;
+    const file = files[0];
+    let type = 'FILE';
+    if (file.type.startsWith('image/')) type = 'PHOTO';
+    else if (file.type.startsWith('video/')) type = 'VIDEO';
+    else if (file.type.startsWith('audio/')) type = 'VOICE';
+    await handleSendMessage({ type, file });
+  };
+
+
 
   // Socket event listeners for real-time messages & presence
   useEffect(() => {
@@ -209,50 +268,51 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
   const peer = conversation.peer;
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-slate-900 overflow-hidden">
-      
+    <div
+      className="flex-1 flex flex-col h-full bg-slate-900 overflow-hidden relative"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Drag & Drop Overlay */}
+      {isDragOver && (
+        <div className="absolute inset-0 z-50 bg-indigo-500/20 border-4 border-dashed border-indigo-500 rounded-2xl flex items-center justify-center pointer-events-none">
+          <div className="flex flex-col items-center gap-3 text-indigo-300">
+            <svg className="w-14 h-14" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.338-2.32 3.75 3.75 0 013.015 3.756A4.5 4.5 0 0117.25 19.5H6.75z" />
+            </svg>
+            <p className="text-lg font-bold">Drop to send file</p>
+          </div>
+        </div>
+      )}
+
       {/* Top Header */}
       <div className="p-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-900/80 backdrop-blur-md z-10">
         <div className="flex items-center gap-3">
-          
-          {/* Back Button for Mobile */}
           <button onClick={onBack} className="md:hidden p-1.5 text-slate-400 hover:text-white rounded-xl">
             <ArrowLeft className="w-5 h-5" />
           </button>
-
-          {/* Avatar & Online Dot */}
           <div className="relative">
             <img
               src={conversation.avatarUrl ? getMediaUrl(conversation.avatarUrl) : `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(conversation.name)}`}
               alt={conversation.name}
               className="w-10 h-10 rounded-full object-cover border border-slate-700"
-              onError={(e) => {
-                e.target.onerror = null;
-                e.target.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(conversation.name)}`;
-              }}
+              onError={(e) => { e.target.onerror = null; e.target.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(conversation.name)}`; }}
             />
             {!isGroup && peer && (
-              <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-slate-900 ${
-                peer.is_online ? 'bg-emerald-500' : 'bg-slate-500'
-              }`} />
+              <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-slate-900 ${peer.is_online ? 'bg-emerald-500' : 'bg-slate-500'}`} />
             )}
           </div>
-
-          {/* Name & Subtitle */}
           <div>
             <h3 className="text-sm font-bold text-white flex items-center gap-1.5 font-display">
               <span>{conversation.name}</span>
               {isGroup && <span className="px-1.5 py-0.5 text-[10px] bg-indigo-950 text-indigo-300 rounded-md border border-indigo-800">Group</span>}
             </h3>
-            
-            {/* Status / Typing string */}
             <p className="text-xs text-slate-400 truncate max-w-[220px]">
               {typingUsers.size > 0 ? (
-                <span className="text-indigo-400 font-semibold animate-pulse">
-                  {Array.from(typingUsers).join(', ')} is typing...
-                </span>
+                <span className="text-indigo-400 font-semibold animate-pulse">{Array.from(typingUsers).join(', ')} is typing...</span>
               ) : isGroup ? (
-                `${conversation.members.length} members`
+                `${conversation.members?.length || 0} members`
               ) : peer?.is_online ? (
                 <span className="text-emerald-400 font-semibold">Online</span>
               ) : (
@@ -264,54 +324,62 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
 
         {/* Action Buttons */}
         <div className="flex items-center gap-1">
-          {/* Voice Call — only for direct chats */}
-          {!isGroup && peer && (
-            <button
-              onClick={() => startCall(
-                { id: peer.id, name: peer.username || conversation.name, avatar: peer.avatar_url || conversation.avatarUrl },
-                'voice'
-              )}
-              className="p-2 text-slate-400 hover:text-green-400 hover:bg-slate-800 rounded-xl transition-all"
-              title="Voice Call"
-            >
-              <Phone className="w-5 h-5" />
-            </button>
-          )}
+          {/* Search Messages */}
+          <button
+            onClick={() => setShowSearch(s => !s)}
+            className={`p-2 rounded-xl transition-all ${showSearch ? 'text-indigo-400 bg-slate-800' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+            title="Search Messages"
+          >
+            <Search className="w-5 h-5" />
+          </button>
 
-          {/* Video Call — only for direct chats */}
           {!isGroup && peer && (
-            <button
-              onClick={() => startCall(
-                { id: peer.id, name: peer.username || conversation.name, avatar: peer.avatar_url || conversation.avatarUrl },
-                'video'
-              )}
-              className="p-2 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-xl transition-all"
-              title="Video Call"
-            >
-              <Video className="w-5 h-5" />
-            </button>
+            <>
+              <button onClick={() => startCall({ id: peer.id, name: peer.username || conversation.name, avatar: peer.avatar_url || conversation.avatarUrl }, 'voice')} className="p-2 text-slate-400 hover:text-green-400 hover:bg-slate-800 rounded-xl transition-all" title="Voice Call">
+                <Phone className="w-5 h-5" />
+              </button>
+              <button onClick={() => startCall({ id: peer.id, name: peer.username || conversation.name, avatar: peer.avatar_url || conversation.avatarUrl }, 'video')} className="p-2 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-xl transition-all" title="Video Call">
+                <Video className="w-5 h-5" />
+              </button>
+            </>
           )}
-
           {isGroup && (
-            <button
-              onClick={() => onOpenGroupInfo(conversation)}
-              className="p-2 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-xl transition-all"
-              title="Group Details & Members"
-            >
+            <button onClick={() => onOpenGroupInfo(conversation)} className="p-2 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-xl transition-all" title="Group Details">
               <Users className="w-5 h-5" />
             </button>
           )}
         </div>
       </div>
 
+      {/* Pinned Messages Bar */}
+      {pinnedMessages.length > 0 && (
+        <PinnedMessageBar
+          pinnedMessages={pinnedMessages}
+          onUnpin={handleUnpin}
+          onJumpTo={handleJumpToMessage}
+        />
+      )}
+
       {/* Messages Scrollable Thread */}
-      <MessageList
-        messages={messages}
-        onReply={(msg) => setReplyToMessage(msg)}
-        onEdit={handleEditMessage}
-        onDelete={handleDeleteMessage}
-        onReaction={handleToggleReaction}
-      />
+      <div className="flex-1 relative overflow-hidden">
+        <MessageList
+          messages={messages}
+          onReply={(msg) => setReplyToMessage(msg)}
+          onEdit={handleEditMessage}
+          onDelete={handleDeleteMessage}
+          onReaction={handleToggleReaction}
+          onPin={handlePin}
+        />
+
+        {/* Search Panel (slide in over message list) */}
+        {showSearch && (
+          <SearchMessagesPanel
+            conversationId={conversationId}
+            onJumpTo={handleJumpToMessage}
+            onClose={() => setShowSearch(false)}
+          />
+        )}
+      </div>
 
       {/* Input Dock */}
       <MessageInput
@@ -320,7 +388,6 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
         replyToMessage={replyToMessage}
         onCancelReply={() => setReplyToMessage(null)}
       />
-
     </div>
   );
 }

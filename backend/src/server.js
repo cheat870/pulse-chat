@@ -14,6 +14,9 @@ const userRoutes = require('./routes/userRoutes');
 const friendRoutes = require('./routes/friendRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const messageRoutes = require('./routes/messageRoutes');
+const pushRoutes = require('./routes/pushRoutes');
+const twoFactorRoutes = require('./routes/twoFactorRoutes');
+const pinSearchRoutes = require('./routes/pinSearchRoutes');
 const { setupSocketIO } = require('./socket/socketHandler');
 
 const app = express();
@@ -31,13 +34,13 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
 // Rate limiting
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 2000, // limit each IP to 2000 requests per window
+  max: 2000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later.' }
@@ -54,6 +57,9 @@ app.use('/api/users', userRoutes);
 app.use('/api/friends', friendRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/messages', messageRoutes);
+app.use('/api/push', pushRoutes);
+app.use('/api/2fa', twoFactorRoutes);
+app.use('/api/pin', pinSearchRoutes);
 
 // Health Check
 app.get('/api/health', (req, res) => {

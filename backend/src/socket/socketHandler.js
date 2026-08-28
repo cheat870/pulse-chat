@@ -122,7 +122,7 @@ function setupSocketIO(io) {
       });
     });
 
-    // ── WebRTC Call Signaling ─────────────────────────────────────────
+    // ── 1-on-1 WebRTC Call Signaling ──────────────────────────────────────
     socket.on('call_request', ({ targetUserId, callType, callerName, callerAvatar, offer }) => {
       io.to(`user_${targetUserId}`).emit('call_request', {
         callerId: userId,
@@ -149,6 +149,52 @@ function setupSocketIO(io) {
       io.to(`user_${targetUserId}`).emit('webrtc_ice_candidate', { candidate, fromUserId: userId });
     });
 
+    // ── Screen Share Signaling ────────────────────────────────────────────
+    socket.on('screen_share_start', ({ targetUserId }) => {
+      io.to(`user_${targetUserId}`).emit('screen_share_start', { fromUserId: userId });
+    });
+
+    socket.on('screen_share_stop', ({ targetUserId }) => {
+      io.to(`user_${targetUserId}`).emit('screen_share_stop', { fromUserId: userId });
+    });
+
+    // ── Group Call Signaling ──────────────────────────────────────────────
+    socket.on('group_call_join', ({ conversationId, callType }) => {
+      socket.join(`groupcall_${conversationId}`);
+      socket.to(`groupcall_${conversationId}`).emit('group_call_peer_joined', {
+        userId,
+        username: socket.username,
+        callType: callType || 'voice'
+      });
+    });
+
+    socket.on('group_call_leave', ({ conversationId }) => {
+      socket.leave(`groupcall_${conversationId}`);
+      socket.to(`groupcall_${conversationId}`).emit('group_call_peer_left', { userId });
+    });
+
+    socket.on('group_call_offer', ({ targetUserId, offer, conversationId }) => {
+      io.to(`user_${targetUserId}`).emit('group_call_offer', {
+        fromUserId: userId,
+        fromUsername: socket.username,
+        offer,
+        conversationId
+      });
+    });
+
+    socket.on('group_call_answer', ({ targetUserId, answer }) => {
+      io.to(`user_${targetUserId}`).emit('group_call_answer', {
+        fromUserId: userId,
+        answer
+      });
+    });
+
+    socket.on('group_call_ice', ({ targetUserId, candidate }) => {
+      io.to(`user_${targetUserId}`).emit('group_call_ice', {
+        fromUserId: userId,
+        candidate
+      });
+    });
 
     socket.on('disconnect', () => {
       console.log(`🔌 User disconnected: ${socket.username} (${userId})`);

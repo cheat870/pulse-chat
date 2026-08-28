@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import MessageItem from './MessageItem';
 import { MessageSquareDashed } from 'lucide-react';
 
-export default function MessageList({ messages, onReply, onEdit, onDelete, onReaction }) {
+export default function MessageList({ messages, onReply, onEdit, onDelete, onReaction, onPin }) {
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -26,14 +26,16 @@ export default function MessageList({ messages, onReply, onEdit, onDelete, onRea
   return (
     <div className="flex-1 p-4 overflow-y-auto space-y-2">
       {messages.map(message => (
-        <MessageItem
-          key={message.id}
-          message={message}
-          onReply={onReply}
-          onEdit={onEdit}
-          onDelete={onDelete}
-          onReaction={onReaction}
-        />
+        <div key={message.id} id={`msg-${message.id}`} className="transition-all duration-300 rounded-2xl">
+          <MessageItem
+            message={message}
+            onReply={onReply}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onReaction={onReaction}
+            onPin={onPin}
+          />
+        </div>
       ))}
       <div ref={bottomRef} />
     </div>

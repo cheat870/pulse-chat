@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import AudioWaveform from './AudioWaveform';
 import { Mic, Square, Play, Pause, Trash2, Send } from 'lucide-react';
 
 export default function VoiceRecorder({ onSendVoice, onCancel }) {
@@ -7,6 +8,7 @@ export default function VoiceRecorder({ onSendVoice, onCancel }) {
   const [audioBlob, setAudioBlob] = useState(null);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [stream, setStream] = useState(null);
 
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
@@ -39,7 +41,8 @@ export default function VoiceRecorder({ onSendVoice, onCancel }) {
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setStream(micStream);
       audioChunksRef.current = [];
 
       let mimeType = 'audio/webm';
@@ -59,7 +62,7 @@ export default function VoiceRecorder({ onSendVoice, onCancel }) {
         }
       }
 
-      const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      const mediaRecorder = new MediaRecorder(micStream, mimeType ? { mimeType } : undefined);
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
@@ -75,7 +78,8 @@ export default function VoiceRecorder({ onSendVoice, onCancel }) {
         setAudioBlob(blob);
         setAudioUrl(url);
         // Stop all audio tracks
-        stream.getTracks().forEach(track => track.stop());
+        micStream.getTracks().forEach(track => track.stop());
+        setStream(null);
       };
 
       mediaRecorder.start(200);
@@ -125,17 +129,11 @@ export default function VoiceRecorder({ onSendVoice, onCancel }) {
         <>
           <div className="flex items-center gap-2 text-rose-400 font-mono text-sm px-2">
             <span className="w-3 h-3 bg-rose-500 rounded-full animate-ping" />
-            <span>Recording {formatTime(duration)}</span>
+            <span>{formatTime(duration)}</span>
           </div>
 
-          <div className="flex-1 h-6 flex items-center gap-1 px-2 overflow-hidden">
-            {[...Array(16)].map((_, i) => (
-              <span
-                key={i}
-                className="w-1 bg-indigo-500 rounded-full animate-pulse"
-                style={{ height: `${Math.max(20, Math.random() * 100)}%`, animationDelay: `${i * 0.1}s` }}
-              />
-            ))}
+          <div className="flex-1 h-10 flex items-center px-2 overflow-hidden">
+            {stream && <AudioWaveform mode="record" mediaStream={stream} barCount={28} />}
           </div>
 
           <button
