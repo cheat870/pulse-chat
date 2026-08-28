@@ -59,6 +59,9 @@ export async function apiRequest(endpoint, method = 'GET', body = null, isFormDa
     }
 
     if (!res.ok) {
+      if (res.status === 401 && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('pulse_session_expired'));
+      }
       const err = new Error(data.error || 'API Request failed');
       err.status = res.status;
       throw err;

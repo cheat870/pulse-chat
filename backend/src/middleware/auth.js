@@ -16,7 +16,7 @@ function authenticateToken(req, res, next) {
 
   const user = db.prepare('SELECT id, username, email, phone, avatar_url, status_text, is_online, last_seen, created_at FROM users WHERE id = ?').get(decoded.id);
   if (!user) {
-    return res.status(404).json({ error: 'User no longer exists' });
+    return res.status(401).json({ error: 'Session expired or account reset. Please log in or register again.' });
   }
 
   req.user = user;

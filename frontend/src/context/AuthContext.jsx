@@ -73,6 +73,12 @@ export function AuthProvider({ children }) {
       }
     }
     loadUser();
+
+    const handleSessionExpired = () => {
+      logout();
+    };
+    window.addEventListener('pulse_session_expired', handleSessionExpired);
+    return () => window.removeEventListener('pulse_session_expired', handleSessionExpired);
   }, [token]);
 
   const login = async (loginId, password) => {
