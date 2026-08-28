@@ -17,6 +17,7 @@ const messageRoutes = require('./routes/messageRoutes');
 const pushRoutes = require('./routes/pushRoutes');
 const twoFactorRoutes = require('./routes/twoFactorRoutes');
 const pinSearchRoutes = require('./routes/pinSearchRoutes');
+const postRoutes = require('./routes/postRoutes');
 const { setupSocketIO } = require('./socket/socketHandler');
 
 const app = express();
@@ -60,6 +61,7 @@ app.use('/api/messages', messageRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/2fa', twoFactorRoutes);
 app.use('/api/pin', pinSearchRoutes);
+app.use('/api/posts', postRoutes);
 
 // Health Check
 app.get('/api/health', (req, res) => {

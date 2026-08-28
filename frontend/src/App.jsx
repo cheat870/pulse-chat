@@ -8,6 +8,7 @@ import CallModal from './components/call/CallModal';
 import AuthModal from './components/auth/AuthModal';
 import Sidebar from './components/chat/Sidebar';
 import ChatWindow from './components/chat/ChatWindow';
+import FeedView from './components/feed/FeedView';
 import FriendsView from './components/friends/FriendsView';
 import CreateGroupModal from './components/group/CreateGroupModal';
 import GroupInfoModal from './components/group/GroupInfoModal';
@@ -20,7 +21,7 @@ function MainApp() {
   const { user, loading } = useAuth();
 
   // Active View State
-  const [currentView, setCurrentView] = useState('chat'); // 'chat', 'friends'
+  const [currentView, setCurrentView] = useState('chat'); // 'chat', 'friends', 'feed'
   const [activeConvId, setActiveConvId] = useState(null);
 
   // Modal States
@@ -67,14 +68,22 @@ function MainApp() {
       />
 
       {/* Sidebar Navigation */}
-      <div className={`${(activeConvId || currentView === 'friends') ? 'hidden md:flex' : 'flex'} w-full md:w-auto h-full shrink-0`}>
+      <div className={`${(activeConvId || currentView === 'friends' || currentView === 'feed') ? 'hidden md:flex' : 'flex'} w-full md:w-auto h-full shrink-0`}>
         <Sidebar
           activeConvId={activeConvId}
+          currentView={currentView}
           onSelectConv={(convId) => {
             setActiveConvId(convId);
             setCurrentView('chat');
           }}
-          onOpenFriends={() => setCurrentView('friends')}
+          onOpenFriends={() => {
+            setActiveConvId(null);
+            setCurrentView('friends');
+          }}
+          onOpenFeed={() => {
+            setActiveConvId(null);
+            setCurrentView('feed');
+          }}
           onOpenGroupModal={() => setShowGroupModal(true)}
           onOpenProfile={() => setShowProfileModal(true)}
         />
@@ -82,7 +91,9 @@ function MainApp() {
 
       {/* Main Content Workspace */}
       <div className={`${(!activeConvId && currentView === 'chat') ? 'hidden md:flex' : 'flex'} flex-1 h-full overflow-hidden`}>
-        {currentView === 'friends' ? (
+        {currentView === 'feed' ? (
+          <FeedView onBack={() => setCurrentView('chat')} />
+        ) : currentView === 'friends' ? (
           <FriendsView
             onStartChat={handleStartChatFromFriends}
             onBack={() => setCurrentView('chat')}
@@ -100,15 +111,23 @@ function MainApp() {
             </div>
             <h2 className="text-2xl font-extrabold text-white font-display">Welcome to PulseChat</h2>
             <p className="text-sm text-slate-400 max-w-md mt-2 mb-6">
-              Select a conversation from the sidebar, or explore the Friends Center to start a new real-time private or group chat.
+              Select a conversation from the sidebar, check the News Feed, or explore the Friends Center to start a new chat.
             </p>
-            <button
-              onClick={() => setCurrentView('friends')}
-              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-indigo-600/30 transition-all flex items-center gap-2"
-            >
-              <span>Explore Friends Center</span>
-              <Sparkles className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setCurrentView('feed')}
+                className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-indigo-600/30 transition-all flex items-center gap-2"
+              >
+                <span>Browse News Feed</span>
+                <Sparkles className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setCurrentView('friends')}
+                className="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-slate-200 font-semibold text-xs rounded-xl border border-slate-800 transition-all"
+              >
+                <span>Friends Center</span>
+              </button>
+            </div>
           </div>
         )}
       </div>

@@ -181,6 +181,49 @@ function initDatabase() {
     );
   `);
 
+  // 12. Social Feed Posts Table (Facebook-style)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS posts (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      content TEXT,
+      media_type TEXT CHECK(media_type IN ('TEXT', 'PHOTO', 'VIDEO')) NOT NULL DEFAULT 'TEXT',
+      media_url TEXT,
+      likes_count INTEGER DEFAULT 0,
+      comments_count INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+  `);
+
+  // 13. Post Likes / Reactions Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS post_likes (
+      id TEXT PRIMARY KEY,
+      post_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      emoji TEXT NOT NULL DEFAULT '❤️',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE(post_id, user_id)
+    );
+  `);
+
+  // 14. Post Comments Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS post_comments (
+      id TEXT PRIMARY KEY,
+      post_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+  `);
+
   console.log('✅ SQLite Database Tables verified successfully.');
 }
 

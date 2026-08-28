@@ -4,9 +4,9 @@ import { useTheme } from '../../context/ThemeContext';
 import { useSound } from '../../context/SoundContext';
 import { useSocket } from '../../context/SocketContext';
 import { apiRequest, getMediaUrl } from '../../services/api';
-import { MessageSquare, Users, UserPlus, Sun, Moon, Volume2, VolumeX, LogOut, Search, Plus, Circle } from 'lucide-react';
+import { MessageSquare, Users, UserPlus, Sun, Moon, Volume2, VolumeX, LogOut, Search, Plus, Circle, Globe } from 'lucide-react';
 
-export default function Sidebar({ activeConvId, onSelectConv, onOpenFriends, onOpenGroupModal, onOpenProfile }) {
+export default function Sidebar({ activeConvId, onSelectConv, onOpenFriends, onOpenFeed, onOpenGroupModal, onOpenProfile, currentView }) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { isMuted, toggleMute } = useSound();
@@ -149,16 +149,34 @@ export default function Sidebar({ activeConvId, onSelectConv, onOpenFriends, onO
         </div>
       </div>
 
-      {/* Main Navigation Actions: Friends & Create Group */}
-      <div className="p-3 grid grid-cols-2 gap-2 border-b border-slate-800/60">
+      {/* Main Navigation Actions: Feed, Friends & Create Group */}
+      <div className="p-2.5 grid grid-cols-3 gap-1.5 border-b border-slate-800/60">
+        <button
+          onClick={onOpenFeed}
+          className={`py-2 px-2 border rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-sm ${
+            currentView === 'feed'
+              ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/30'
+              : 'bg-slate-900 hover:bg-slate-800 text-slate-200 border-slate-800'
+          }`}
+          title="Social News Feed"
+        >
+          <Globe className="w-3.5 h-3.5 text-indigo-400" />
+          <span>Feed</span>
+        </button>
+
         <button
           onClick={onOpenFriends}
-          className="relative py-2 px-3 bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-300 border border-indigo-500/20 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-sm"
+          className={`relative py-2 px-2 border rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-sm ${
+            currentView === 'friends'
+              ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/30'
+              : 'bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-300 border-indigo-500/20'
+          }`}
+          title="Friends List & Requests"
         >
-          <Users className="w-4 h-4 text-indigo-400" />
+          <Users className="w-3.5 h-3.5 text-indigo-400" />
           <span>Friends</span>
           {unreadRequestsCount > 0 && (
-            <span className="absolute -top-1 -right-1 px-1.5 py-0.5 text-[10px] bg-rose-500 text-white font-extrabold rounded-full animate-bounce">
+            <span className="absolute -top-1 -right-1 px-1.5 py-0.2 text-[9px] bg-rose-500 text-white font-extrabold rounded-full animate-bounce">
               {unreadRequestsCount}
             </span>
           )}
@@ -166,10 +184,11 @@ export default function Sidebar({ activeConvId, onSelectConv, onOpenFriends, onO
 
         <button
           onClick={onOpenGroupModal}
-          className="py-2 px-3 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all"
+          className="py-2 px-2 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all"
+          title="Create New Group"
         >
-          <Plus className="w-4 h-4 text-indigo-400" />
-          <span>New Group</span>
+          <Plus className="w-3.5 h-3.5 text-indigo-400" />
+          <span>Group</span>
         </button>
       </div>
 
