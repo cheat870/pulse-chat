@@ -103,8 +103,10 @@ export default function Sidebar({
     };
   }, [socket]);
 
-  const filteredConversations = conversations.filter(c => {
-    const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase());
+  const filteredConversations = (conversations || []).filter(c => {
+    if (!c) return false;
+    const convName = c.name || c.peer?.username || 'Chat';
+    const matchesSearch = convName.toLowerCase().includes((search || '').toLowerCase());
     if (filter === 'PRIVATE') return matchesSearch && c.type === 'PRIVATE';
     if (filter === 'GROUP') return matchesSearch && c.type === 'GROUP';
     return matchesSearch;
@@ -328,6 +330,7 @@ export default function Sidebar({
           filteredConversations.map(conv => {
             const isActive = conv.id === activeConvId;
             const peer = conv.peer;
+            const convDisplayName = conv.name || peer?.username || 'Chat';
 
             return (
               <div
@@ -342,12 +345,12 @@ export default function Sidebar({
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="relative shrink-0">
                     <img
-                      src={conv.avatarUrl ? getMediaUrl(conv.avatarUrl) : `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(conv.name)}`}
-                      alt={conv.name}
+                      src={conv.avatarUrl ? getMediaUrl(conv.avatarUrl) : `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(convDisplayName)}`}
+                      alt={convDisplayName}
                       className="w-11 h-11 rounded-full object-cover border border-slate-700/50"
                       onError={(e) => {
                         e.target.onerror = null;
-                        e.target.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(conv.name)}`;
+                        e.target.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(convDisplayName)}`;
                       }}
                     />
                     {conv.type === 'PRIVATE' && peer && (
@@ -360,7 +363,7 @@ export default function Sidebar({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between">
                       <h4 className={`text-sm font-bold truncate font-display ${isActive ? 'text-white' : 'text-slate-100'}`}>
-                        {conv.name}
+                        {convDisplayName}
                       </h4>
                       {conv.lastMessage && (
                         <span className={`text-[10px] ml-2 shrink-0 ${isActive ? 'text-indigo-200' : 'text-slate-500'}`}>
