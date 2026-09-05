@@ -221,13 +221,13 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <SocketProvider>
-          <SoundProvider>
+        <SoundProvider>
+          <SocketProvider>
             <CallProvider>
               <MainApp />
             </CallProvider>
-          </SoundProvider>
-        </SocketProvider>
+          </SocketProvider>
+        </SoundProvider>
       </AuthProvider>
     </ThemeProvider>
   );

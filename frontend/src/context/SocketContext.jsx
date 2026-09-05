@@ -112,5 +112,15 @@ export function SocketProvider({ children }) {
 }
 
 export function useSocket() {
-  return useContext(SocketContext);
+  const context = useContext(SocketContext);
+  if (!context) {
+    return {
+      socket: null,
+      friendRequestNotification: null,
+      messageNotification: null,
+      clearNotification: () => {},
+      clearMessageNotification: () => {}
+    };
+  }
+  return context;
 }

@@ -76,5 +76,9 @@ export function SoundProvider({ children }) {
 }
 
 export function useSound() {
-  return useContext(SoundContext);
+  const context = useContext(SoundContext);
+  if (!context) {
+    return { isMuted: false, toggleMute: () => {}, playChime: () => {} };
+  }
+  return context;
 }
