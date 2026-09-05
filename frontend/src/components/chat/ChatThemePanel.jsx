@@ -49,7 +49,7 @@ export default function ChatThemePanel({ conversationId, isOpen, onClose, onThem
       }
       onClose();
     } catch (e) {
-      alert('Failed to save theme settings');
+      alert(e.message || 'Failed to save theme settings');
     } finally {
       setSaving(false);
     }

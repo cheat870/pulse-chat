@@ -59,21 +59,15 @@ export default function ProfilePage({ userId, onBack, onStartChat }) {
   const uploadAvatar = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const token = localStorage.getItem('pulsechat_token');
     const form = new FormData();
     form.append('avatar', file);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/users/profile`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` },
-        body: form
-      });
-      const data = await res.json();
-      if (data.user?.avatar_url) {
+      const data = await apiRequest('/users/profile', 'PUT', form, true);
+      if (data && data.user?.avatar_url) {
         setProfile(p => ({ ...p, avatar_url: data.user.avatar_url }));
       }
     } catch (err) {
-      alert('Failed to upload avatar');
+      alert(err.message || 'Failed to upload avatar');
     }
   };
 

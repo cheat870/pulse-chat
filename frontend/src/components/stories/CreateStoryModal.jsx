@@ -1,8 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { X, Upload, Sparkles } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://pulse-chat-o97b.onrender.com';
+import { apiRequest } from '../../services/api';
 
 export default function CreateStoryModal({ onClose, onCreated }) {
   const { user } = useAuth();
@@ -25,21 +24,15 @@ export default function CreateStoryModal({ onClose, onCreated }) {
     if (!mediaFile) return;
     setLoading(true);
     try {
-      const token = localStorage.getItem('pulsechat_token');
       const form = new FormData();
       form.append('media', mediaFile);
       form.append('caption', caption);
       form.append('media_type', mediaType);
 
-      const res = await fetch(`${BACKEND_URL}/api/stories`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: form
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Upload failed');
-      onCreated(data.story);
+      const data = await apiRequest('/stories', 'POST', form, true);
+      if (data && data.story) {
+        onCreated(data.story);
+      }
     } catch (err) {
       alert(err.message || 'Failed to publish story');
     } finally {
