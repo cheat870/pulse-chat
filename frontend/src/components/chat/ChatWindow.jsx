@@ -339,7 +339,7 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
 
   return (
     <div
-      className="flex-1 flex flex-col h-full bg-slate-900 overflow-hidden relative"
+      className="flex-1 flex flex-col h-full bg-slate-900 overflow-hidden relative min-h-0"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -449,7 +449,7 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
       )}
 
       {/* Messages Scrollable Thread */}
-      <div className="flex-1 relative overflow-hidden">
+      <div className="flex-1 relative overflow-hidden flex flex-col min-h-0 h-full">
         <MessageList
           messages={messages}
           onReply={(msg) => setReplyToMessage(msg)}
