@@ -72,6 +72,55 @@ function getConversations(req, res) {
   }
 }
 
+function getConversationById(req, res) {
+  try {
+    const userId = req.user.id;
+    const { conversationId } = req.params;
+
+    const conv = db.prepare(`
+      SELECT c.id, c.type, c.name, c.avatar_url, c.created_by_id, c.created_at, c.updated_at,
+             cm.role
+      FROM conversations c
+      LEFT JOIN conversation_members cm ON c.id = cm.conversation_id AND cm.user_id = ?
+      WHERE c.id = ?
+    `).get(userId, conversationId);
+
+    if (!conv) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    const members = db.prepare(`
+      SELECT u.id, u.username, u.email, u.avatar_url, u.status_text, u.is_online, u.last_seen, cm.role
+      FROM conversation_members cm
+      JOIN users u ON cm.user_id = u.id
+      WHERE cm.conversation_id = ?
+    `).all(conv.id);
+
+    let peer = null;
+    if (conv.type === 'PRIVATE') {
+      peer = members.find(m => m.id !== userId) || members[0] || null;
+    }
+
+    return res.json({
+      conversation: {
+        id: conv.id,
+        type: conv.type,
+        name: conv.type === 'GROUP' ? conv.name : (peer ? peer.username : 'Private Chat'),
+        avatarUrl: conv.type === 'GROUP' ? (conv.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(conv.name || 'group')}`) : (peer ? peer.avatar_url : null),
+        createdById: conv.created_by_id,
+        myRole: conv.role || 'MEMBER',
+        createdAt: conv.created_at,
+        updatedAt: conv.updated_at,
+        members,
+        peer
+      }
+    });
+  } catch (err) {
+    console.error('Get Conversation Error:', err);
+    return res.status(500).json({ error: 'Failed to fetch conversation' });
+  }
+}
+
 function getOrCreatePrivateChat(req, res) {
   try {
     const userId = req.user.id;
@@ -417,6 +466,7 @@ function syncRestoreData(req, res) {
 
 module.exports = {
   getConversations,
+  getConversationById,
   getOrCreatePrivateChat,
   createGroupChat,
   updateGroupInfo,

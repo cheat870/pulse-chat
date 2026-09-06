@@ -5,14 +5,14 @@ import PinnedMessageBar from './PinnedMessageBar';
 import SearchMessagesPanel from './SearchMessagesPanel';
 import ChatThemePanel from './ChatThemePanel';
 import { apiRequest, getMediaUrl } from '../../services/api';
-import { getLocalMessages, saveLocalMessages, syncDataToServer } from '../../services/persistence';
+import { getLocalMessages, saveLocalMessages, getLocalConversations, syncDataToServer } from '../../services/persistence';
 import { useSocket } from '../../context/SocketContext';
 import { useSound } from '../../context/SoundContext';
 import { useAuth } from '../../context/AuthContext';
 import { useCall } from '../../context/CallContext';
 import {
   Phone, Video, Info, ArrowLeft, Users, Shield, Circle,
-  Search, Palette, BarChart2, Bookmark
+  Search, Palette, BarChart2, Bookmark, MessageSquare
 } from 'lucide-react';
 
 export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) {
@@ -21,7 +21,10 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
   const { playChime } = useSound();
   const { startCall } = useCall();
 
-  const [conversation, setConversation] = useState(null);
+  const [conversation, setConversation] = useState(() => {
+    const local = getLocalConversations();
+    return local.find(c => c && c.id === conversationId) || null;
+  });
   const [messages, setMessages] = useState(() => {
     const local = getLocalMessages(conversationId);
     return local.length > 0 ? local : [];
@@ -49,8 +52,26 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
   const loadChat = async () => {
     try {
       const convsData = await apiRequest('/chats');
-      const currentConv = convsData.conversations?.find(c => c.id === conversationId);
-      if (currentConv) setConversation(currentConv);
+      let currentConv = convsData.conversations?.find(c => c.id === conversationId);
+
+      if (!currentConv) {
+        // Try fetching single conversation directly from server
+        const singleData = await apiRequest(`/chats/${conversationId}`).catch(() => null);
+        if (singleData && singleData.conversation) {
+          currentConv = singleData.conversation;
+        } else {
+          // Check locally persisted conversations
+          const localConvs = getLocalConversations();
+          currentConv = localConvs.find(c => c && c.id === conversationId);
+          if (currentConv) {
+            syncDataToServer();
+          }
+        }
+      }
+
+      if (currentConv) {
+        setConversation(currentConv);
+      }
 
       const msgData = await apiRequest(`/messages/conversation/${conversationId}`);
       if (msgData && msgData.messages) {
@@ -68,6 +89,12 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
       }
     } catch (err) {
       console.error('Failed to load chat:', err);
+      // Robust offline fallback
+      const localConvs = getLocalConversations();
+      const localConv = localConvs.find(c => c && c.id === conversationId);
+      if (localConv) setConversation(localConv);
+      const local = getLocalMessages(conversationId);
+      if (local.length > 0) setMessages(local);
     } finally {
       setLoading(false);
     }
@@ -257,18 +284,52 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
     }
   };
 
-  if (loading) {
+  if (loading && !conversation) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-slate-900">
-        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+      <div className="flex-1 flex flex-col items-center justify-center bg-slate-950 text-white">
+        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+        <p className="text-xs text-slate-400">Loading conversation...</p>
       </div>
     );
   }
 
   if (!conversation) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-slate-900 text-slate-400">
-        Conversation not found
+      <div className="flex-1 flex flex-col h-full bg-slate-950 text-slate-100">
+        <div className="p-3.5 border-b border-slate-800 flex items-center gap-3 bg-slate-950/80 backdrop-blur">
+          <button
+            onClick={onBack}
+            className="p-1.5 hover:bg-slate-800 rounded-xl text-slate-300 hover:text-white transition-colors flex items-center gap-2"
+          >
+            <ArrowLeft className="w-5 h-5 text-indigo-400" />
+            <span className="text-sm font-semibold">Back to Chats</span>
+          </button>
+        </div>
+
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+          <div className="w-16 h-16 rounded-3xl bg-slate-900 border border-slate-800 flex items-center justify-center text-indigo-400 mb-4 shadow-xl">
+            <MessageSquare className="w-8 h-8" />
+          </div>
+          <h3 className="text-base font-bold text-white mb-1">Conversation Not Found</h3>
+          <p className="text-xs text-slate-400 max-w-xs mb-6">
+            This chat could not be located or may have been cleared during server restart.
+          </p>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onBack}
+              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md transition-all flex items-center gap-1.5"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back to Chat List</span>
+            </button>
+            <button
+              onClick={() => { setLoading(true); loadChat(); }}
+              className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-xl text-xs font-semibold transition-all"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
       </div>
     );
   }

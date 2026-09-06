@@ -36,6 +36,37 @@ function MainApp() {
   const [showGroupInfoModal, setShowGroupInfoModal] = useState(null);
   const [showSearchModal, setShowSearchModal] = useState(false);
 
+  // Telegram WebApp Integration (Native Back Button & Fullscreen Expansion)
+  useEffect(() => {
+    const tg = window.Telegram?.WebApp;
+    if (!tg) return;
+    try {
+      tg.ready();
+      tg.expand();
+
+      const handleTgBack = () => {
+        if (activeConvId) {
+          setActiveConvId(null);
+        } else if (currentView !== 'chat') {
+          setCurrentView('chat');
+        }
+      };
+
+      if (activeConvId || currentView !== 'chat') {
+        tg.BackButton?.show();
+        tg.BackButton?.onClick(handleTgBack);
+      } else {
+        tg.BackButton?.hide();
+      }
+
+      return () => {
+        tg.BackButton?.offClick(handleTgBack);
+      };
+    } catch (e) {
+      console.warn('Telegram WebApp integration warning:', e);
+    }
+  }, [activeConvId, currentView]);
+
   if (loading) {
     return (
       <div className="h-screen w-screen bg-slate-950 flex flex-col items-center justify-center text-white">

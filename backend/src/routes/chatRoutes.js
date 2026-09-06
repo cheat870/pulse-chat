@@ -4,6 +4,7 @@ const upload = require('../middleware/upload');
 const { authenticateToken } = require('../middleware/auth');
 const {
   getConversations,
+  getConversationById,
   getOrCreatePrivateChat,
   createGroupChat,
   updateGroupInfo,
@@ -16,6 +17,7 @@ router.use(authenticateToken);
 
 router.get('/', getConversations);
 router.post('/sync-restore', syncRestoreData);
+router.get('/:conversationId', getConversationById);
 router.post('/private', getOrCreatePrivateChat);
 router.post('/group', upload.single('avatar'), createGroupChat);
 router.put('/group/:conversationId', upload.single('avatar'), updateGroupInfo);
