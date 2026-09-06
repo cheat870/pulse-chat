@@ -232,12 +232,32 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
       if (msgData.longitude) formData.append('longitude', msgData.longitude);
       if (msgData.duration) formData.append('duration', msgData.duration);
 
-      const res = await apiRequest('/messages/send', 'POST', formData, true);
+      let res;
+      try {
+        res = await apiRequest('/messages/send', 'POST', formData, true);
+      } catch (sendErr) {
+        // If server says Not authorized or conversation was wiped on server restart, auto-repair with peer
+        if ((sendErr.status === 403 || sendErr.message?.includes('Not authorized') || sendErr.message?.includes('authorized')) && conversation?.peer?.id) {
+          console.log('🔄 Re-authorizing chat with peer on server...');
+          const fixConv = await apiRequest('/chats/private', 'POST', { targetUserId: conversation.peer.id });
+          if (fixConv && fixConv.conversationId) {
+            formData.set('conversationId', fixConv.conversationId);
+            res = await apiRequest('/messages/send', 'POST', formData, true);
+            if (fixConv.conversationId !== conversationId) {
+              setConversation(prev => ({ ...prev, id: fixConv.conversationId }));
+            }
+          } else {
+            throw sendErr;
+          }
+        } else {
+          throw sendErr;
+        }
+      }
 
       // Append locally and broadcast
       persistMessages(prev => [...prev, res.message]);
       if (socket) {
-        socket.emit('send_message', { conversationId, message: res.message });
+        socket.emit('send_message', { conversationId: res.message.conversation_id || conversationId, message: res.message });
       }
       window.dispatchEvent(new CustomEvent('pulse_message_sent', { detail: { conversationId } }));
     } catch (err) {
