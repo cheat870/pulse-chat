@@ -4,6 +4,29 @@ import { apiRequest } from './api';
 const FRIENDS_KEY = 'pulsechat_persisted_friends';
 const CONVS_KEY = 'pulsechat_persisted_conversations';
 const MSG_PREFIX = 'pulsechat_persisted_msgs_';
+const PROFILE_KEY = 'pulsechat_persisted_profile';
+
+export function getLocalUserProfile() {
+  try {
+    const raw = localStorage.getItem(PROFILE_KEY);
+    if (raw) return JSON.parse(raw);
+    const userRaw = localStorage.getItem('pulsechat_user');
+    return userRaw ? JSON.parse(userRaw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveLocalUserProfile(profile) {
+  if (!profile) return;
+  try {
+    const current = getLocalUserProfile() || {};
+    const merged = { ...current, ...profile };
+    localStorage.setItem(PROFILE_KEY, JSON.stringify(merged));
+  } catch (e) {
+    console.warn('saveLocalUserProfile error:', e);
+  }
+}
 
 export function getLocalFriends() {
   try {
@@ -83,6 +106,7 @@ export async function syncDataToServer() {
   lastSyncTime = Date.now();
 
   try {
+    const profile = getLocalUserProfile();
     const friends = getLocalFriends();
     const conversations = getLocalConversations();
 
@@ -95,16 +119,17 @@ export async function syncDataToServer() {
       }
     }
 
-    if (friends.length === 0 && conversations.length === 0 && messages.length === 0) {
+    if (!profile && friends.length === 0 && conversations.length === 0 && messages.length === 0) {
       return;
     }
 
     await apiRequest('/chats/sync-restore', 'POST', {
+      profile,
       friends,
       conversations,
       messages
     });
-    console.log('✅ Persistent Chat & Friends synced to server successfully');
+    console.log('✅ Persistent Profile, Chat & Friends synced to server successfully');
   } catch (e) {
     console.warn('syncDataToServer warning:', e);
   }

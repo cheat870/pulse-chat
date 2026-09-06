@@ -8,7 +8,7 @@ import { getLocalConversations, saveLocalConversations, syncDataToServer } from 
 import NotificationCenter from '../notifications/NotificationCenter';
 import {
   MessageSquare, Users, UserPlus, Sun, Moon, Volume2, VolumeX, LogOut,
-  Search, Plus, Circle, Globe, Bell, Bookmark, Bot, BarChart3, Sparkles
+  Search, Plus, Circle, Globe, Bell, Bookmark, Bot, BarChart3, Sparkles, User
 } from 'lucide-react';
 
 export default function Sidebar({
@@ -190,11 +190,11 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* Main Navigation Actions: Feed, Friends & Create Group */}
-      <div className="p-2.5 grid grid-cols-3 gap-1.5 border-b border-slate-800/60">
+      {/* Main Navigation Actions: Feed, Friends, Profile & Create Group */}
+      <div className="p-2.5 grid grid-cols-4 gap-1.5 border-b border-slate-800/60">
         <button
           onClick={onOpenFeed}
-          className={`py-2 px-2 border rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-sm ${
+          className={`py-2 px-1.5 border rounded-xl text-xs font-semibold flex items-center justify-center gap-1 transition-all shadow-sm ${
             currentView === 'feed'
               ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/30'
               : 'bg-slate-900 hover:bg-slate-800 text-slate-200 border-slate-800'
@@ -207,7 +207,7 @@ export default function Sidebar({
 
         <button
           onClick={onOpenFriends}
-          className={`relative py-2 px-2 border rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-sm ${
+          className={`relative py-2 px-1.5 border rounded-xl text-xs font-semibold flex items-center justify-center gap-1 transition-all shadow-sm ${
             currentView === 'friends'
               ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/30'
               : 'bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-300 border-indigo-500/20'
@@ -224,8 +224,21 @@ export default function Sidebar({
         </button>
 
         <button
+          onClick={onOpenProfile}
+          className={`py-2 px-1.5 border rounded-xl text-xs font-semibold flex items-center justify-center gap-1 transition-all shadow-sm ${
+            currentView === 'profile'
+              ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/30'
+              : 'bg-slate-900 hover:bg-slate-800 text-slate-200 border-slate-800'
+          }`}
+          title="My Profile"
+        >
+          <User className="w-3.5 h-3.5 text-indigo-400" />
+          <span>Profile</span>
+        </button>
+
+        <button
           onClick={onOpenGroupModal}
-          className="py-2 px-2 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all"
+          className="py-2 px-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 rounded-xl text-xs font-semibold flex items-center justify-center gap-1 transition-all"
           title="Create New Group"
         >
           <Plus className="w-3.5 h-3.5 text-indigo-400" />

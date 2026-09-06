@@ -313,13 +313,24 @@ function removeGroupMember(req, res) {
 function syncRestoreData(req, res) {
   try {
     const currentUserId = req.user.id;
-    const { friends = [], conversations = [], messages = [] } = req.body;
+    const { friends = [], conversations = [], messages = [], profile } = req.body;
 
-    // 1. Ensure current user exists
+    // 1. Ensure current user exists & restore profile details
+    const pUsername = (profile && profile.username) || req.user.username || 'user';
+    const pEmail = (profile && profile.email) || req.user.email || `${currentUserId}@pulsechat.app`;
+    const pAvatar = (profile && profile.avatar_url) || req.user.avatar_url || null;
+    const pStatus = (profile && profile.status_text) || req.user.status_text || 'Available';
+    const pBio = (profile && profile.bio) || req.user.bio || '';
+
     db.prepare(`
-      INSERT OR IGNORE INTO users (id, username, email, password_hash, created_at)
-      VALUES (?, ?, ?, 'RESTORED_AUTH', CURRENT_TIMESTAMP)
-    `).run(currentUserId, req.user.username || 'user', req.user.email || `${currentUserId}@pulsechat.app`);
+      INSERT INTO users (id, username, email, avatar_url, status_text, bio, password_hash, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'RESTORED_AUTH', CURRENT_TIMESTAMP)
+      ON CONFLICT(id) DO UPDATE SET
+        username = COALESCE(excluded.username, users.username),
+        avatar_url = COALESCE(excluded.avatar_url, users.avatar_url),
+        status_text = COALESCE(excluded.status_text, users.status_text),
+        bio = COALESCE(excluded.bio, users.bio)
+    `).run(currentUserId, pUsername, pEmail, pAvatar, pStatus, pBio);
 
     // 2. Restore friends
     for (const f of friends) {

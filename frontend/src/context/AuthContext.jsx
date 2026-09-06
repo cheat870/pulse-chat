@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { apiRequest } from '../services/api';
+import { saveLocalUserProfile, getLocalUserProfile, syncDataToServer } from '../services/persistence';
 
 const AuthContext = createContext();
 
@@ -7,6 +8,8 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => localStorage.getItem('pulsechat_token'));
   const [user, setUser] = useState(() => {
     try {
+      const persisted = getLocalUserProfile();
+      if (persisted) return persisted;
       const savedUser = localStorage.getItem('pulsechat_user');
       return savedUser ? JSON.parse(savedUser) : null;
     } catch {
@@ -17,11 +20,17 @@ export function AuthProvider({ children }) {
 
   // Helper to persist user state & localStorage together
   const persistUser = (userData) => {
-    setUser(userData);
     if (userData) {
-      localStorage.setItem('pulsechat_user', JSON.stringify(userData));
+      setUser(prev => {
+        const merged = { ...prev, ...userData };
+        localStorage.setItem('pulsechat_user', JSON.stringify(merged));
+        saveLocalUserProfile(merged);
+        return merged;
+      });
     } else {
+      setUser(null);
       localStorage.removeItem('pulsechat_user');
+      localStorage.removeItem('pulsechat_persisted_profile');
     }
   };
 
@@ -53,13 +62,27 @@ export function AuthProvider({ children }) {
 
       // If user info is not loaded in state yet, restore minimal from decoded JWT
       if (!user && decoded) {
-        persistUser({ id: decoded.id, username: decoded.username, avatar_url: null, status_text: '' });
+        persistUser({ id: decoded.id, username: decoded.username, avatar_url: null, status_text: 'Available', bio: '' });
       }
 
       try {
         const data = await apiRequest('/auth/me');
         if (data && data.user) {
-          persistUser(data.user);
+          // Merge safely so server restart stubs don't overwrite saved local avatar/bio
+          setUser(prev => {
+            const merged = {
+              ...prev,
+              ...data.user,
+              avatar_url: data.user.avatar_url || prev?.avatar_url || null,
+              bio: data.user.bio || prev?.bio || '',
+              status_text: data.user.status_text || prev?.status_text || 'Available'
+            };
+            localStorage.setItem('pulsechat_user', JSON.stringify(merged));
+            saveLocalUserProfile(merged);
+            return merged;
+          });
+          // Auto-sync profile to server in case server DB was restarted
+          syncDataToServer();
         }
       } catch (err) {
         if (err.status === 401) {
