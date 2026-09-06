@@ -6,7 +6,8 @@ const fs = require('fs');
 // GET /api/stories - get active stories from friends and self
 exports.getStories = (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user?.id;
+    if (!userId) return res.json({ storyGroups: [] });
     const now = new Date().toISOString();
 
     const stories = db.prepare(`
@@ -56,7 +57,9 @@ exports.getStories = (req, res) => {
 // POST /api/stories - create story
 exports.createStory = (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
     const { caption, media_type } = req.body;
     const mediaFile = req.file;
 
@@ -64,14 +67,21 @@ exports.createStory = (req, res) => {
       return res.status(400).json({ error: 'Media file is required' });
     }
 
-    const mediaUrl = `/uploads/${mediaFile.filename}`;
+    let finalMediaType = media_type || 'PHOTO';
+    let mediaUrl = `/uploads/photos/${mediaFile.filename}`;
+
+    if (mediaFile.mimetype.startsWith('video/')) {
+      finalMediaType = 'VIDEO';
+      mediaUrl = `/uploads/videos/${mediaFile.filename}`;
+    }
+
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
     const id = uuidv4();
 
     db.prepare(`
       INSERT INTO stories (id, user_id, media_url, media_type, caption, expires_at)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run(id, userId, mediaUrl, media_type || (mediaFile.mimetype.startsWith('video') ? 'VIDEO' : 'PHOTO'), caption || '', expiresAt);
+    `).run(id, userId, mediaUrl, finalMediaType, caption || '', expiresAt);
 
     const story = db.prepare(`
       SELECT s.*, u.username, u.avatar_url
@@ -86,14 +96,14 @@ exports.createStory = (req, res) => {
     res.status(201).json({ story });
   } catch (err) {
     console.error('createStory error:', err);
-    res.status(500).json({ error: 'Failed to create story' });
+    res.status(500).json({ error: err.message || 'Failed to create story' });
   }
 };
 
 // POST /api/stories/:id/view - mark story as viewed
 exports.viewStory = (req, res) => {
   try {
-    const viewerId = req.user.id;
+    const viewerId = req.user?.id;
     const { id } = req.params;
 
     const existing = db.prepare('SELECT id FROM story_views WHERE story_id = ? AND viewer_id = ?').get(id, viewerId);
@@ -112,7 +122,7 @@ exports.viewStory = (req, res) => {
 // DELETE /api/stories/:id - delete own story
 exports.deleteStory = (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user?.id;
     const { id } = req.params;
 
     const story = db.prepare('SELECT * FROM stories WHERE id = ?').get(id);
@@ -136,7 +146,7 @@ exports.deleteStory = (req, res) => {
 // GET /api/stories/:id/views - list of viewers
 exports.getStoryViewers = (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user?.id;
     const { id } = req.params;
 
     const story = db.prepare('SELECT * FROM stories WHERE id = ?').get(id);

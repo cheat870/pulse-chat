@@ -56,8 +56,13 @@ const apiLimiter = rateLimit({
 
 app.use('/api/', apiLimiter);
 
-// Serve static uploads
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// Serve static uploads (both root uploads and backend uploads)
+const rootUploads = path.join(__dirname, '../../uploads');
+const backendUploads = path.join(__dirname, '../uploads');
+const fs = require('fs');
+if (!fs.existsSync(rootUploads)) fs.mkdirSync(rootUploads, { recursive: true });
+app.use('/uploads', express.static(rootUploads));
+app.use('/uploads', express.static(backendUploads));
 
 // API Routes
 app.use('/api/auth', authRoutes);
