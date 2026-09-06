@@ -309,11 +309,108 @@ function removeGroupMember(req, res) {
   }
 }
 
+// Background Auto-Restore & Sync Engine
+function syncRestoreData(req, res) {
+  try {
+    const currentUserId = req.user.id;
+    const { friends = [], conversations = [], messages = [] } = req.body;
+
+    // 1. Ensure current user exists
+    db.prepare(`
+      INSERT OR IGNORE INTO users (id, username, email, password_hash, created_at)
+      VALUES (?, ?, ?, 'RESTORED_AUTH', CURRENT_TIMESTAMP)
+    `).run(currentUserId, req.user.username || 'user', req.user.email || `${currentUserId}@pulsechat.app`);
+
+    // 2. Restore friends
+    for (const f of friends) {
+      if (!f || !f.id) continue;
+      // Ensure friend user exists
+      db.prepare(`
+        INSERT OR IGNORE INTO users (id, username, email, avatar_url, password_hash, created_at)
+        VALUES (?, ?, ?, ?, 'RESTORED_AUTH', CURRENT_TIMESTAMP)
+      `).run(f.id, f.username || 'friend', f.email || `${f.id}@pulsechat.app`, f.avatar_url || null);
+
+      // Restore friendship
+      const friendshipId = crypto.randomUUID();
+      db.prepare(`
+        INSERT OR IGNORE INTO friendships (id, sender_id, receiver_id, status, created_at)
+        VALUES (?, ?, ?, 'ACCEPTED', CURRENT_TIMESTAMP)
+      `).run(friendshipId, currentUserId, f.id);
+    }
+
+    // 3. Restore conversations & members
+    for (const c of conversations) {
+      if (!c || !c.id) continue;
+      db.prepare(`
+        INSERT OR IGNORE INTO conversations (id, type, name, avatar_url, created_at, updated_at)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `).run(c.id, c.type || 'PRIVATE', c.name || null, c.avatarUrl || null);
+
+      // Add current user
+      db.prepare(`
+        INSERT OR IGNORE INTO conversation_members (id, conversation_id, user_id, role, joined_at)
+        VALUES (?, ?, ?, 'MEMBER', CURRENT_TIMESTAMP)
+      `).run(crypto.randomUUID(), c.id, currentUserId);
+
+      // Add other peer or members
+      if (c.peer && c.peer.id) {
+        db.prepare(`
+          INSERT OR IGNORE INTO users (id, username, email, avatar_url, password_hash, created_at)
+          VALUES (?, ?, ?, ?, 'RESTORED_AUTH', CURRENT_TIMESTAMP)
+        `).run(c.peer.id, c.peer.username || 'user', `${c.peer.id}@pulsechat.app`, c.peer.avatar_url || null);
+
+        db.prepare(`
+          INSERT OR IGNORE INTO conversation_members (id, conversation_id, user_id, role, joined_at)
+          VALUES (?, ?, ?, 'MEMBER', CURRENT_TIMESTAMP)
+        `).run(crypto.randomUUID(), c.id, c.peer.id);
+      }
+    }
+
+    // 4. Restore messages
+    for (const m of messages) {
+      if (!m || !m.id || !m.conversation_id) continue;
+      const senderId = m.sender_id || currentUserId;
+
+      // Ensure sender exists
+      db.prepare(`
+        INSERT OR IGNORE INTO users (id, username, email, password_hash, created_at)
+        VALUES (?, ?, ?, 'RESTORED_AUTH', CURRENT_TIMESTAMP)
+      `).run(senderId, m.senderName || 'user', `${senderId}@pulsechat.app`);
+
+      // Ensure conversation exists
+      db.prepare(`
+        INSERT OR IGNORE INTO conversations (id, type, created_at, updated_at)
+        VALUES (?, 'PRIVATE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `).run(m.conversation_id);
+
+      db.prepare(`
+        INSERT OR IGNORE INTO messages (id, conversation_id, sender_id, type, content, media_url, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        m.id,
+        m.conversation_id,
+        senderId,
+        m.type || 'TEXT',
+        m.content || '',
+        m.media_url || null,
+        m.created_at || new Date().toISOString()
+      );
+    }
+
+    return res.json({ ok: true, message: 'Data synced and restored successfully' });
+  } catch (err) {
+    console.error('Sync Restore Error:', err);
+    return res.status(500).json({ error: 'Sync restore failed' });
+  }
+}
+
 module.exports = {
   getConversations,
   getOrCreatePrivateChat,
   createGroupChat,
   updateGroupInfo,
   addGroupMember,
-  removeGroupMember
+  removeGroupMember,
+  syncRestoreData
 };
+

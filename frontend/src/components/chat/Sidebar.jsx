@@ -4,6 +4,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useSound } from '../../context/SoundContext';
 import { useSocket } from '../../context/SocketContext';
 import { apiRequest, getMediaUrl } from '../../services/api';
+import { getLocalConversations, saveLocalConversations, syncDataToServer } from '../../services/persistence';
 import NotificationCenter from '../notifications/NotificationCenter';
 import {
   MessageSquare, Users, UserPlus, Sun, Moon, Volume2, VolumeX, LogOut,
@@ -32,12 +33,8 @@ export default function Sidebar({
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
   const [conversations, setConversations] = useState(() => {
-    try {
-      const cached = localStorage.getItem('pulsechat_conversations_cache');
-      return cached ? JSON.parse(cached) : [];
-    } catch {
-      return [];
-    }
+    const persisted = getLocalConversations();
+    return persisted.length > 0 ? persisted : [];
   });
   const [unreadRequestsCount, setUnreadRequestsCount] = useState(0);
   const [search, setSearch] = useState('');
@@ -47,8 +44,17 @@ export default function Sidebar({
     try {
       const data = await apiRequest('/chats');
       if (data && data.conversations) {
-        setConversations(data.conversations);
-        localStorage.setItem('pulsechat_conversations_cache', JSON.stringify(data.conversations));
+        if (data.conversations.length > 0) {
+          setConversations(data.conversations);
+          saveLocalConversations(data.conversations);
+        } else {
+          // If server returned empty, sync local conversations back to server
+          const local = getLocalConversations();
+          if (local.length > 0) {
+            setConversations(local);
+            syncDataToServer();
+          }
+        }
       }
     } catch (err) {
       console.error('Failed to load conversations:', err);

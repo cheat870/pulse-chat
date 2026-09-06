@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiRequest, getMediaUrl } from '../../services/api';
+import { getLocalFriends, saveLocalFriends, syncDataToServer } from '../../services/persistence';
 import { useSocket } from '../../context/SocketContext';
 import { UserPlus, Users, Mail, Search, Check, X, MessageSquare, Trash2, ShieldCheck, Clock, UserCheck, ArrowLeft } from 'lucide-react';
 
@@ -9,12 +10,8 @@ export default function FriendsView({ onStartChat, onBack }) {
 
   // Data States
   const [friends, setFriends] = useState(() => {
-    try {
-      const cached = localStorage.getItem('pulsechat_friends_cache');
-      return cached ? JSON.parse(cached) : [];
-    } catch {
-      return [];
-    }
+    const persisted = getLocalFriends();
+    return persisted.length > 0 ? persisted : [];
   });
   const [incomingRequests, setIncomingRequests] = useState(() => {
     try {
@@ -36,8 +33,17 @@ export default function FriendsView({ onStartChat, onBack }) {
     try {
       const data = await apiRequest('/friends');
       if (data && data.friends) {
-        setFriends(data.friends);
-        localStorage.setItem('pulsechat_friends_cache', JSON.stringify(data.friends));
+        if (data.friends.length > 0) {
+          setFriends(data.friends);
+          saveLocalFriends(data.friends);
+        } else {
+          // If server returned empty, use locally persisted friends and re-sync to server
+          const local = getLocalFriends();
+          if (local.length > 0) {
+            setFriends(local);
+            syncDataToServer();
+          }
+        }
       }
     } catch (err) {
       console.error('Failed to load friends:', err);

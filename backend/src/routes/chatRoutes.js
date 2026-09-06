@@ -8,12 +8,14 @@ const {
   createGroupChat,
   updateGroupInfo,
   addGroupMember,
-  removeGroupMember
+  removeGroupMember,
+  syncRestoreData
 } = require('../controllers/chatController');
 
 router.use(authenticateToken);
 
 router.get('/', getConversations);
+router.post('/sync-restore', syncRestoreData);
 router.post('/private', getOrCreatePrivateChat);
 router.post('/group', upload.single('avatar'), createGroupChat);
 router.put('/group/:conversationId', upload.single('avatar'), updateGroupInfo);

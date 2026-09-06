@@ -5,6 +5,7 @@ import PinnedMessageBar from './PinnedMessageBar';
 import SearchMessagesPanel from './SearchMessagesPanel';
 import ChatThemePanel from './ChatThemePanel';
 import { apiRequest, getMediaUrl } from '../../services/api';
+import { getLocalMessages, saveLocalMessages, syncDataToServer } from '../../services/persistence';
 import { useSocket } from '../../context/SocketContext';
 import { useSound } from '../../context/SoundContext';
 import { useAuth } from '../../context/AuthContext';
@@ -22,12 +23,8 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
 
   const [conversation, setConversation] = useState(null);
   const [messages, setMessages] = useState(() => {
-    try {
-      const cached = localStorage.getItem(`pulsechat_msgs_${conversationId}`);
-      return cached ? JSON.parse(cached) : [];
-    } catch {
-      return [];
-    }
+    const local = getLocalMessages(conversationId);
+    return local.length > 0 ? local : [];
   });
   const [typingUsers, setTypingUsers] = useState(new Set());
   const [replyToMessage, setReplyToMessage] = useState(null);
@@ -39,14 +36,11 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
   const [isDragOver, setIsDragOver] = useState(false);
   const messageListRef = useRef(null);
 
-
-  // Helper to update messages and save to localStorage
+  // Helper to update messages and save to persistent storage
   const persistMessages = (updater) => {
     setMessages(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
-      try {
-        localStorage.setItem(`pulsechat_msgs_${conversationId}`, JSON.stringify(next));
-      } catch (e) {}
+      saveLocalMessages(conversationId, next);
       return next;
     });
   };
@@ -60,8 +54,17 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
 
       const msgData = await apiRequest(`/messages/conversation/${conversationId}`);
       if (msgData && msgData.messages) {
-        setMessages(msgData.messages);
-        localStorage.setItem(`pulsechat_msgs_${conversationId}`, JSON.stringify(msgData.messages));
+        if (msgData.messages.length > 0) {
+          setMessages(msgData.messages);
+          saveLocalMessages(conversationId, msgData.messages);
+        } else {
+          // If server returned empty, fallback to locally stored messages and sync to server
+          const local = getLocalMessages(conversationId);
+          if (local.length > 0) {
+            setMessages(local);
+            syncDataToServer();
+          }
+        }
       }
     } catch (err) {
       console.error('Failed to load chat:', err);
