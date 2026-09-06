@@ -221,6 +221,10 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
       const formData = new FormData();
       formData.append('conversationId', conversationId);
       formData.append('type', msgData.type);
+      if (conversation?.peer?.id) {
+        formData.append('peerId', conversation.peer.id);
+        if (conversation.peer.username) formData.append('peerUsername', conversation.peer.username);
+      }
       if (msgData.content) formData.append('content', msgData.content);
       if (msgData.file) formData.append('file', msgData.file);
       if (msgData.replyToId) formData.append('replyToId', msgData.replyToId);
