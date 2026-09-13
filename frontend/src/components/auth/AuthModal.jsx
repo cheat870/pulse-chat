@@ -38,61 +38,91 @@ export default function AuthModal() {
   });
   const [showGoogleConfig, setShowGoogleConfig] = useState(false);
   const [clientIdInput, setClientIdInput] = useState('');
-  const googleBtnRef = useRef(null);
 
+  // Check if returning from Google OAuth redirect with access_token in URL hash
   useEffect(() => {
-    if (!googleClientId) return;
-
-    const setupGoogle = () => {
-      if (window.google?.accounts?.id) {
-        try {
-          window.google.accounts.id.initialize({
-            client_id: googleClientId.trim(),
-            callback: async (response) => {
-              if (response && response.credential) {
-                setLoading(true);
-                setError('');
-                try {
-                  await loginWithGoogle({ credential: response.credential });
-                } catch (err) {
-                  setError(err.message || 'Google Sign-In failed');
-                } finally {
-                  setLoading(false);
-                }
+    try {
+      const hash = window.location.hash;
+      if (hash && hash.includes('access_token=')) {
+        const params = new URLSearchParams(hash.substring(1));
+        const accessToken = params.get('access_token');
+        if (accessToken) {
+          window.history.replaceState(null, null, window.location.pathname);
+          setLoading(true);
+          fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { Authorization: `Bearer ${accessToken}` }
+          })
+            .then(r => r.json())
+            .then(googleProfile => {
+              if (googleProfile && googleProfile.email) {
+                return loginWithGoogle({ profile: googleProfile });
               }
-            },
-            auto_select: false,
-            cancel_on_tap_outside: true
-          });
-
-          if (googleBtnRef.current) {
-            googleBtnRef.current.innerHTML = '';
-            window.google.accounts.id.renderButton(googleBtnRef.current, {
-              theme: 'filled_black',
-              size: 'large',
-              width: 320,
-              text: 'continue_with',
-              shape: 'pill'
-            });
-          }
-        } catch (err) {
-          console.warn('Google Identity initialization error:', err);
+            })
+            .catch(e => setError(e.message || 'Google Sign-In failed'))
+            .finally(() => setLoading(false));
         }
       }
-    };
+    } catch {}
+  }, []);
 
-    if (window.google?.accounts?.id) {
-      setupGoogle();
-    } else {
-      const timer = setInterval(() => {
-        if (window.google?.accounts?.id) {
-          setupGoogle();
-          clearInterval(timer);
-        }
-      }, 300);
-      return () => clearInterval(timer);
+  const handleGoogleSignIn = () => {
+    setError('');
+    const clientId = (googleClientId || DEFAULT_GOOGLE_CLIENT_ID).trim();
+    if (!clientId) {
+      setShowGoogleConfig(true);
+      return;
     }
-  }, [googleClientId]);
+
+    setLoading(true);
+
+    // Primary: Google Identity Services OAuth2 Token Client (opens standard accounts.google.com popup)
+    if (window.google?.accounts?.oauth2) {
+      try {
+        const client = window.google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: 'email profile openid',
+          callback: async (tokenResponse) => {
+            if (tokenResponse.error) {
+              setLoading(false);
+              if (tokenResponse.error !== 'popup_closed_by_user') {
+                setError(tokenResponse.error_description || tokenResponse.error || 'Google Sign-In cancelled');
+              }
+              return;
+            }
+
+            try {
+              const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
+              });
+              const googleProfile = await res.json();
+              if (!googleProfile.email) {
+                throw new Error('Could not retrieve email from Google');
+              }
+              await loginWithGoogle({ profile: googleProfile });
+            } catch (err) {
+              setError(err.message || 'Failed to complete Google Sign-In');
+            } finally {
+              setLoading(false);
+            }
+          }
+        });
+        client.requestAccessToken({ prompt: 'select_account' });
+        return;
+      } catch (err) {
+        console.warn('initTokenClient error, using direct popup fallback:', err);
+      }
+    }
+
+    // Direct OAuth2 popup fallback (guaranteed to work across all browsers without gsi/transform)
+    const width = 500;
+    const height = 600;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+    const redirectUri = window.location.origin;
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=email%20profile%20openid&prompt=select_account`;
+    window.open(authUrl, 'GoogleSignIn', `width=${width},height=${height},top=${top},left=${left}`);
+    setLoading(false);
+  };
 
   const handleSaveGoogleClientId = (e) => {
     e.preventDefault();
@@ -332,30 +362,12 @@ export default function AuthModal() {
           </div>
 
           {/* Google Sign In Area */}
-          {googleClientId ? (
-            <div className="flex flex-col items-center gap-2">
-              <div ref={googleBtnRef} className="w-full flex justify-center min-h-[44px]"></div>
-              <button
-                type="button"
-                onClick={() => {
-                  setClientIdInput(googleClientId);
-                  setShowGoogleConfig(true);
-                }}
-                className="text-[11px] text-slate-500 hover:text-indigo-400 flex items-center gap-1 transition-colors"
-              >
-                <Settings className="w-3 h-3" />
-                <span>Google OAuth Config</span>
-              </button>
-            </div>
-          ) : (
+          <div className="flex flex-col items-center gap-2 w-full">
             <button
               type="button"
               disabled={loading}
-              onClick={() => {
-                setClientIdInput(googleClientId);
-                setShowGoogleConfig(true);
-              }}
-              className="w-full py-3 px-4 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-semibold rounded-xl text-sm transition-all flex items-center justify-center gap-3 shadow-sm hover:border-slate-700"
+              onClick={handleGoogleSignIn}
+              className="w-full py-3 px-4 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-semibold rounded-xl text-sm transition-all flex items-center justify-center gap-3 shadow-sm hover:border-slate-700 disabled:opacity-50"
             >
               <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
                 <path
@@ -375,9 +387,20 @@ export default function AuthModal() {
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                 />
               </svg>
-              <span>Continue with Google</span>
+              <span>{loading ? 'Connecting to Google...' : 'Continue with Google'}</span>
             </button>
-          )}
+            <button
+              type="button"
+              onClick={() => {
+                setClientIdInput(googleClientId || DEFAULT_GOOGLE_CLIENT_ID);
+                setShowGoogleConfig(true);
+              }}
+              className="text-[11px] text-slate-500 hover:text-indigo-400 flex items-center gap-1 transition-colors"
+            >
+              <Settings className="w-3 h-3" />
+              <span>Google OAuth Config</span>
+            </button>
+          </div>
         </form>
       </div>
 
