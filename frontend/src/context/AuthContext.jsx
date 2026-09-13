@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { apiRequest } from '../services/api';
 import { saveLocalUserProfile, getLocalUserProfile, syncDataToServer } from '../services/persistence';
 import { subscribeToPushNotifications } from '../services/pushNotification';
+import { syncPublicKeyToServer } from '../services/e2ee';
 
 
 const AuthContext = createContext();
@@ -87,6 +88,8 @@ export function AuthProvider({ children }) {
           syncDataToServer();
           // Attempt push notification subscription quietly
           subscribeToPushNotifications().catch(() => {});
+          // Ensure E2EE key is generated and synced
+          syncPublicKeyToServer(data.user.id).catch(() => {});
         }
       } catch (err) {
         if (err.status === 401) {
@@ -114,6 +117,7 @@ export function AuthProvider({ children }) {
     setToken(data.token);
     persistUser(data.user);
     subscribeToPushNotifications().catch(() => {});
+    syncPublicKeyToServer(data.user.id).catch(() => {});
     return data;
   };
 
@@ -123,6 +127,7 @@ export function AuthProvider({ children }) {
     setToken(data.token);
     persistUser(data.user);
     subscribeToPushNotifications().catch(() => {});
+    syncPublicKeyToServer(data.user.id).catch(() => {});
     return data;
   };
 
@@ -132,6 +137,7 @@ export function AuthProvider({ children }) {
     setToken(data.token);
     persistUser(data.user);
     subscribeToPushNotifications().catch(() => {});
+    syncPublicKeyToServer(data.user.id).catch(() => {});
     return data;
   };
 

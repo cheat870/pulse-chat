@@ -6,6 +6,8 @@ const userCtrl = require('../controllers/userController');
 
 router.use(authenticateToken);
 
+router.put('/e2ee-key', userCtrl.saveE2EEPublicKey);
+router.get('/:userId/e2ee-key', userCtrl.getE2EEPublicKey);
 router.get('/search', userCtrl.searchUsers);
 router.get('/analytics', userCtrl.getAnalytics);
 router.get('/:userId/profile', userCtrl.getProfile);

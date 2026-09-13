@@ -184,11 +184,39 @@ function getAnalytics(req, res) {
   }
 }
 
+function saveE2EEPublicKey(req, res) {
+  try {
+    const userId = req.user.id;
+    const { publicKey } = req.body;
+    if (!publicKey) return res.status(400).json({ error: 'publicKey required' });
+
+    db.prepare('UPDATE users SET e2ee_public_key = ? WHERE id = ?').run(publicKey, userId);
+    return res.json({ success: true, message: 'E2EE Public key updated' });
+  } catch (err) {
+    console.error('Save E2EE Key Error:', err);
+    return res.status(500).json({ error: 'Failed to save E2EE key' });
+  }
+}
+
+function getE2EEPublicKey(req, res) {
+  try {
+    const { userId } = req.params;
+    const user = db.prepare('SELECT id, username, e2ee_public_key FROM users WHERE id = ?').get(userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    return res.json({ userId: user.id, username: user.username, publicKey: user.e2ee_public_key || null });
+  } catch (err) {
+    console.error('Get E2EE Key Error:', err);
+    return res.status(500).json({ error: 'Failed to get E2EE key' });
+  }
+}
+
 module.exports = {
   searchUsers,
   getProfile,
   updateProfile,
   toggleOnlineVisibility,
-  getAnalytics
+  getAnalytics,
+  saveE2EEPublicKey,
+  getE2EEPublicKey
 };
 

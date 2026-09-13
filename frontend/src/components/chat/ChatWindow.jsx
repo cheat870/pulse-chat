@@ -12,8 +12,11 @@ import { useAuth } from '../../context/AuthContext';
 import { useCall } from '../../context/CallContext';
 import {
   Phone, Video, Info, ArrowLeft, Users, Shield, Circle,
-  Search, Palette, BarChart2, Bookmark, MessageSquare, Timer, Clock, Trash2
+  Search, Palette, BarChart2, Bookmark, MessageSquare, Timer, Clock, Trash2,
+  Lock, ShieldCheck, Key
 } from 'lucide-react';
+import { getOrDeriveSharedKey, encryptE2EEMessage, decryptE2EEMessage, isE2EEMessage } from '../../services/e2ee';
+
 
 export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) {
   const { socket } = useSocket();
@@ -51,6 +54,60 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
       console.error('Failed to set disappearing timer:', err);
     }
   };
+
+  // E2EE States
+  const [isE2EEEnabled, setIsE2EEEnabled] = useState(false);
+  const [e2eeSharedKey, setE2eeSharedKey] = useState(null);
+  const [peerHasE2EEKey, setPeerHasE2EEKey] = useState(false);
+
+  // Derive E2EE shared key with 1-on-1 chat peer
+  useEffect(() => {
+    if (!conversation || conversation.type === 'GROUP' || !conversation.peer?.id || !user?.id) {
+      setE2eeSharedKey(null);
+      setPeerHasE2EEKey(false);
+      return;
+    }
+
+    let isMounted = true;
+    getOrDeriveSharedKey(user.id, conversation.peer.id)
+      .then(key => {
+        if (!isMounted) return;
+        if (key) {
+          setE2eeSharedKey(key);
+          setPeerHasE2EEKey(true);
+        } else {
+          setPeerHasE2EEKey(false);
+        }
+      })
+      .catch(() => {
+        if (isMounted) setPeerHasE2EEKey(false);
+      });
+
+    return () => { isMounted = false; };
+  }, [conversation?.id, conversation?.peer?.id, user?.id]);
+
+  // Decrypt list of messages
+  const decryptMessageList = useCallback(async (msgList, key) => {
+    if (!key) return msgList;
+    return Promise.all(msgList.map(async (m) => {
+      if (m.content && isE2EEMessage(m.content)) {
+        const res = await decryptE2EEMessage(m.content, key);
+        return { ...m, content: res.text, isE2EE: true };
+      }
+      return m;
+    }));
+  }, []);
+
+  // Re-decrypt messages once shared key is derived
+  useEffect(() => {
+    if (!e2eeSharedKey || messages.length === 0) return;
+    const hasEncrypted = messages.some(m => m.content && isE2EEMessage(m.content));
+    if (hasEncrypted) {
+      decryptMessageList(messages, e2eeSharedKey).then(decrypted => {
+        setMessages(decrypted);
+      });
+    }
+  }, [e2eeSharedKey, decryptMessageList]);
 
   // Helper to update messages and save to persistent storage
   const persistMessages = (updater) => {
@@ -92,13 +149,15 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
       const msgData = await apiRequest(`/messages/conversation/${conversationId}`);
       if (msgData && msgData.messages) {
         if (msgData.messages.length > 0) {
-          setMessages(msgData.messages);
           saveLocalMessages(conversationId, msgData.messages);
+          const processed = e2eeSharedKey ? await decryptMessageList(msgData.messages, e2eeSharedKey) : msgData.messages;
+          setMessages(processed);
         } else {
           // If server returned empty, fallback to locally stored messages and sync to server
           const local = getLocalMessages(conversationId);
           if (local.length > 0) {
-            setMessages(local);
+            const processed = e2eeSharedKey ? await decryptMessageList(local, e2eeSharedKey) : local;
+            setMessages(processed);
             syncDataToServer();
           }
         }
@@ -186,11 +245,22 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
 
     const handleNewMessage = (data) => {
       if (data.conversationId === conversationId && data.message) {
-        persistMessages(prev => {
-          // Deduplicate: skip if message ID already exists (own message added locally)
-          if (prev.some(m => m.id === data.message.id)) return prev;
-          return [...prev, data.message];
-        });
+        const rawMsg = data.message;
+        if (rawMsg.content && isE2EEMessage(rawMsg.content) && e2eeSharedKey) {
+          decryptE2EEMessage(rawMsg.content, e2eeSharedKey).then(dec => {
+            const decMsg = { ...rawMsg, content: dec.text, isE2EE: true };
+            persistMessages(prev => {
+              if (prev.some(m => m.id === decMsg.id)) return prev;
+              return [...prev, decMsg];
+            });
+          });
+        } else {
+          persistMessages(prev => {
+            // Deduplicate: skip if message ID already exists (own message added locally)
+            if (prev.some(m => m.id === rawMsg.id)) return prev;
+            return [...prev, rawMsg];
+          });
+        }
         if (data.message.sender_id !== user.id) {
           playChime('message');
         }
@@ -241,7 +311,13 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
         formData.append('peerId', conversation.peer.id);
         if (conversation.peer.username) formData.append('peerUsername', conversation.peer.username);
       }
-      if (msgData.content) formData.append('content', msgData.content);
+      let textToSend = msgData.content;
+      let isMsgEncrypted = false;
+      if (isE2EEEnabled && e2eeSharedKey && msgData.type === 'TEXT' && textToSend) {
+        textToSend = await encryptE2EEMessage(textToSend, e2eeSharedKey);
+        isMsgEncrypted = true;
+      }
+      if (textToSend) formData.append('content', textToSend);
       if (msgData.file) formData.append('file', msgData.file);
       if (msgData.replyToId) formData.append('replyToId', msgData.replyToId);
       if (msgData.latitude) formData.append('latitude', msgData.latitude);
@@ -272,7 +348,10 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
       }
 
       // Append locally and broadcast
-      persistMessages(prev => [...prev, res.message]);
+      const localMsg = isMsgEncrypted
+        ? { ...res.message, content: msgData.content, isE2EE: true }
+        : res.message;
+      persistMessages(prev => [...prev, localMsg]);
       if (socket) {
         socket.emit('send_message', { conversationId: res.message.conversation_id || conversationId, message: res.message });
       }
@@ -496,6 +575,42 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
             )}
           </div>
 
+          {/* End-to-End Encryption (E2EE) Button */}
+          {!isGroup && peer && (
+            <button
+              onClick={() => {
+                if (!peerHasE2EEKey) {
+                  alert(`🔐 E2EE Setup Notice:\n${peer.username || 'This contact'} has not exchanged encryption keys yet. Once both users open PulseChat, End-to-End Encryption will be fully ready.`);
+                  return;
+                }
+                setIsE2EEEnabled(prev => !prev);
+              }}
+              className={`p-2 rounded-xl transition-all flex items-center gap-1.5 ${
+                isE2EEEnabled
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-sm shadow-emerald-500/20 ring-1 ring-emerald-500/30'
+                  : peerHasE2EEKey
+                  ? 'text-slate-400 hover:text-emerald-400 hover:bg-slate-800'
+                  : 'text-slate-500 hover:text-slate-400 hover:bg-slate-800'
+              }`}
+              title={
+                isE2EEEnabled
+                  ? 'End-to-End Encryption is ON 🔐 (Messages encrypted with AES-GCM 256)'
+                  : peerHasE2EEKey
+                  ? 'Turn ON End-to-End Encryption (E2EE)'
+                  : 'E2EE waiting for peer key'
+              }
+            >
+              {isE2EEEnabled ? (
+                <>
+                  <Lock className="w-4 h-4 text-emerald-400" />
+                  <span className="text-[10px] font-bold text-emerald-400 hidden sm:inline">E2EE ON</span>
+                </>
+              ) : (
+                <ShieldCheck className="w-5 h-5" />
+              )}
+            </button>
+          )}
+
           {/* Chat Theme Customization */}
           <button
             onClick={() => setShowThemePanel(t => !t)}
@@ -531,6 +646,24 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
           )}
         </div>
       </div>
+
+      {/* E2EE Active Banner */}
+      {isE2EEEnabled && (
+        <div className="bg-emerald-950/60 border-b border-emerald-800/60 px-4 py-2 flex items-center justify-between text-xs text-emerald-300 backdrop-blur-md">
+          <div className="flex items-center gap-2">
+            <Lock className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            <span className="text-[11px] font-medium leading-tight">
+              End-to-End Encrypted (AES-GCM 256): Messages are encrypted on your device. Not even the server can read them.
+            </span>
+          </div>
+          <button
+            onClick={() => setIsE2EEEnabled(false)}
+            className="text-[10px] underline hover:text-white ml-2 flex-shrink-0"
+          >
+            Turn Off
+          </button>
+        </div>
+      )}
 
       {/* Pinned Messages Bar */}
       {pinnedMessages.length > 0 && (

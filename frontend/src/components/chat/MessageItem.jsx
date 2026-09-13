@@ -6,7 +6,7 @@ import PollMessage from '../group/PollMessage';
 import LinkPreview, { extractUrls } from './LinkPreview';
 import {
   Play, Pause, Download, MapPin, Smile, Reply, Edit3, Trash2,
-  Copy, Check, CheckCheck, FileText, Film, Pin, Bookmark, BarChart2, Clock, Timer
+  Copy, Check, CheckCheck, FileText, Film, Pin, Bookmark, BarChart2, Clock, Timer, Lock
 } from 'lucide-react';
 
 export default function MessageItem({ message, onReply, onEdit, onDelete, onReaction, onPin }) {
@@ -198,6 +198,11 @@ export default function MessageItem({ message, onReply, onEdit, onDelete, onReac
 
           {/* Timestamp & Status checks */}
           <div className="flex items-center justify-end gap-1.5 mt-1.5 text-[10px] opacity-70">
+            {message.isE2EE && (
+              <span className="flex items-center gap-0.5 text-emerald-400 font-semibold" title="End-to-End Encrypted (AES-GCM 256)">
+                <Lock className="w-3 h-3 text-emerald-400" />
+              </span>
+            )}
             {message.expires_at && (
               <span className="flex items-center gap-0.5 text-amber-300 font-semibold" title={`Disappears at ${new Date(message.expires_at).toLocaleTimeString()}`}>
                 <Clock className="w-3 h-3 text-amber-400" />

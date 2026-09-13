@@ -341,6 +341,7 @@ function initDatabase() {
   const userCols = db.prepare("PRAGMA table_info(users)").all().map(c => c.name);
   if (!userCols.includes('bio')) db.exec("ALTER TABLE users ADD COLUMN bio TEXT DEFAULT ''");
   if (!userCols.includes('hide_online_status')) db.exec("ALTER TABLE users ADD COLUMN hide_online_status INTEGER DEFAULT 0");
+  if (!userCols.includes('e2ee_public_key')) db.exec("ALTER TABLE users ADD COLUMN e2ee_public_key TEXT DEFAULT NULL");
 
   const msgCols = db.prepare("PRAGMA table_info(messages)").all().map(c => c.name);
   if (!msgCols.includes('reply_to_id')) db.exec("ALTER TABLE messages ADD COLUMN reply_to_id TEXT");
