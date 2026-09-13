@@ -20,9 +20,15 @@ function getMessages(req, res) {
       `).run(crypto.randomUUID(), conversationId, userId);
     }
 
+    // Auto-purge any expired messages
+    const nowIso = new Date().toISOString();
+    try {
+      db.prepare('DELETE FROM messages WHERE expires_at IS NOT NULL AND expires_at < ?').run(nowIso);
+    } catch {}
+
     const messages = db.prepare(`
       SELECT m.id, m.conversation_id, m.sender_id, m.type, m.content, m.media_url, m.file_name,
-             m.file_size, m.duration, m.latitude, m.longitude, m.reply_to_id, m.is_edited, m.is_deleted, m.created_at,
+             m.file_size, m.duration, m.latitude, m.longitude, m.reply_to_id, m.is_edited, m.is_deleted, m.created_at, m.expires_at,
              u.username AS senderName, u.avatar_url AS senderAvatar
       FROM messages m
       JOIN users u ON m.sender_id = u.id
@@ -88,15 +94,16 @@ function getMessages(req, res) {
 function sendMessage(req, res) {
   try {
     const userId = req.user.id;
-    const { conversationId, type = 'TEXT', content, replyToId, latitude, longitude, duration, peerId, peerUsername } = req.body;
+    const { conversationId, type = 'TEXT', content, replyToId, latitude, longitude, duration, peerId, peerUsername, disappearAfter } = req.body;
 
     // Ensure conversation exists (auto-heal after server restarts)
-    let conv = db.prepare('SELECT id, type FROM conversations WHERE id = ?').get(conversationId);
+    let conv = db.prepare('SELECT id, type, disappear_after FROM conversations WHERE id = ?').get(conversationId);
     if (!conv) {
       db.prepare(`
         INSERT OR IGNORE INTO conversations (id, type, created_at, updated_at)
         VALUES (?, 'PRIVATE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `).run(conversationId);
+      conv = { id: conversationId, type: 'PRIVATE', disappear_after: null };
     }
 
     // Ensure current user is in conversation_members
@@ -139,14 +146,21 @@ function sendMessage(req, res) {
     const messageId = crypto.randomUUID();
     const now = new Date().toISOString();
 
+    // Determine expiration timestamp for disappearing message
+    let expiresAt = null;
+    const ttlSeconds = disappearAfter ? parseInt(disappearAfter, 10) : conv.disappear_after;
+    if (ttlSeconds && ttlSeconds > 0) {
+      expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
+    }
+
     db.prepare(`
       INSERT INTO messages (
         id, conversation_id, sender_id, type, content, media_url, file_name, file_size,
-        duration, latitude, longitude, reply_to_id, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        duration, latitude, longitude, reply_to_id, created_at, expires_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       messageId, conversationId, userId, type, content || null, mediaUrl, fileName, fileSize,
-      duration ? parseFloat(duration) : null, latitude ? parseFloat(latitude) : null, longitude ? parseFloat(longitude) : null, replyToId || null, now
+      duration ? parseFloat(duration) : null, latitude ? parseFloat(latitude) : null, longitude ? parseFloat(longitude) : null, replyToId || null, now, expiresAt
     );
 
     // Update conversation timestamp
@@ -157,7 +171,7 @@ function sendMessage(req, res) {
 
     const fullMsg = db.prepare(`
       SELECT m.id, m.conversation_id, m.sender_id, m.type, m.content, m.media_url, m.file_name,
-             m.file_size, m.duration, m.latitude, m.longitude, m.reply_to_id, m.is_edited, m.is_deleted, m.created_at,
+             m.file_size, m.duration, m.latitude, m.longitude, m.reply_to_id, m.is_edited, m.is_deleted, m.created_at, m.expires_at,
              u.username AS senderName, u.avatar_url AS senderAvatar
       FROM messages m
       JOIN users u ON m.sender_id = u.id
@@ -172,6 +186,25 @@ function sendMessage(req, res) {
         JOIN users u ON m.sender_id = u.id
         WHERE m.id = ?
       `).get(replyToId);
+    }
+
+    // Send Web Push to offline conversation members
+    try {
+      const { sendPushToUser } = require('./pushController');
+      const members = db.prepare('SELECT user_id FROM conversation_members WHERE conversation_id = ? AND user_id != ?').all(conversationId, userId);
+      const senderUser = db.prepare('SELECT username FROM users WHERE id = ?').get(userId);
+      const pushPayload = {
+        title: senderUser?.username || 'PulseChat',
+        body: type === 'TEXT' ? (content?.substring(0, 80) || 'Sent a message') : `Sent a ${type.toLowerCase()}`,
+        icon: '/icons/icon-192.png',
+        badge: '/icons/icon-192.png',
+        data: { conversationId, type: 'new_message' }
+      };
+      members.forEach(m => {
+        sendPushToUser(m.user_id, pushPayload).catch(() => {});
+      });
+    } catch (pushErr) {
+      // Push notification is best effort
     }
 
     return res.status(201).json({
@@ -268,10 +301,36 @@ function toggleReaction(req, res) {
   }
 }
 
+function purgeExpiredMessages(req, res) {
+  try {
+    const result = db.prepare('DELETE FROM messages WHERE expires_at IS NOT NULL AND expires_at < ?').run(new Date().toISOString());
+    return res.json({ success: true, deleted: result.changes });
+  } catch (err) {
+    console.error('Purge Expired Messages Error:', err);
+    return res.status(500).json({ error: 'Failed to purge expired messages' });
+  }
+}
+
+function setDisappearingTimer(req, res) {
+  try {
+    const { conversationId } = req.params;
+    const { seconds } = req.body;
+    const ttl = seconds ? parseInt(seconds, 10) : null;
+
+    db.prepare('UPDATE conversations SET disappear_after = ? WHERE id = ?').run(ttl, conversationId);
+    return res.json({ success: true, conversationId, disappearAfter: ttl });
+  } catch (err) {
+    console.error('Set Disappearing Timer Error:', err);
+    return res.status(500).json({ error: 'Failed to update disappearing timer' });
+  }
+}
+
 module.exports = {
   getMessages,
   sendMessage,
   editMessage,
   deleteMessage,
-  toggleReaction
+  toggleReaction,
+  purgeExpiredMessages,
+  setDisappearingTimer
 };

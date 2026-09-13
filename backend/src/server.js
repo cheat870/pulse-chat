@@ -25,6 +25,7 @@ const bookmarkRoutes = require('./routes/bookmarkRoutes');
 const pollRoutes = require('./routes/pollRoutes');
 const themeRoutes = require('./routes/themeRoutes');
 const aiRoutes = require('./routes/aiRoutes');
+const linkPreviewRoutes = require('./routes/linkPreviewRoutes');
 const { setupSocketIO } = require('./socket/socketHandler');
 
 const app = express();
@@ -81,6 +82,7 @@ app.use('/api/bookmarks', bookmarkRoutes);
 app.use('/api/polls', pollRoutes);
 app.use('/api/themes', themeRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/link-preview', linkPreviewRoutes);
 
 // Health Check
 app.get('/api/health', (req, res) => {

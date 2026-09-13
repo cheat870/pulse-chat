@@ -2,7 +2,9 @@ import React, { useState, useRef } from 'react';
 import VoiceRecorder from './VoiceRecorder';
 import LocationPickerModal from './LocationPickerModal';
 import GifPicker from './GifPicker';
-import { Send, Paperclip, Mic, Smile, Image, Video, FileText, MapPin, X } from 'lucide-react';
+import { Send, Paperclip, Mic, Smile, Image, Video, FileText, MapPin, X, MicOff } from 'lucide-react';
+
+const hasSpeechRecognition = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
 
 export default function MessageInput({ onSendMessage, onTyping, replyToMessage, onCancelReply }) {
   const [text, setText] = useState('');
@@ -10,11 +12,46 @@ export default function MessageInput({ onSendMessage, onTyping, replyToMessage, 
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [showGifPicker, setShowGifPicker] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef(null);
   const [filePreview, setFilePreview] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
 
   const fileInputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+
+  const toggleSpeechToText = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+    recognition.onresult = (event) => {
+      let transcript = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          transcript += event.results[i][0].transcript;
+        }
+      }
+      if (transcript) {
+        setText(prev => {
+          const base = prev.trimEnd();
+          return base ? base + ' ' + transcript : transcript;
+        });
+      }
+    };
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsListening(true);
+  };
 
   const handleTextChange = (e) => {
     setText(e.target.value);
@@ -241,6 +278,22 @@ export default function MessageInput({ onSendMessage, onTyping, replyToMessage, 
               title="Send Message"
             >
               <Send className="w-5 h-5" />
+            </button>
+          )}
+
+          {/* Speech-to-Text Button */}
+          {hasSpeechRecognition && (
+            <button
+              type="button"
+              onClick={toggleSpeechToText}
+              className={`p-2.5 rounded-xl transition-all ${
+                isListening
+                  ? 'bg-red-500/20 text-red-400 animate-pulse ring-1 ring-red-500/50'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white'
+              }`}
+              title={isListening ? 'Stop speech recognition' : 'Speech to text'}
+            >
+              {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-4 h-4" />}
             </button>
           )}
 

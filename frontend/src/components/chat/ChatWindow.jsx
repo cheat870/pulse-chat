@@ -12,7 +12,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useCall } from '../../context/CallContext';
 import {
   Phone, Video, Info, ArrowLeft, Users, Shield, Circle,
-  Search, Palette, BarChart2, Bookmark, MessageSquare
+  Search, Palette, BarChart2, Bookmark, MessageSquare, Timer, Clock, Trash2
 } from 'lucide-react';
 
 export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) {
@@ -36,8 +36,21 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
   const [showSearch, setShowSearch] = useState(false);
   const [showThemePanel, setShowThemePanel] = useState(false);
   const [currentTheme, setCurrentTheme] = useState({ theme_color: 'indigo', wallpaper: 'none' });
+  const [disappearAfter, setDisappearAfter] = useState(() => conversation?.disappear_after || null);
+  const [showDisappearMenu, setShowDisappearMenu] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const messageListRef = useRef(null);
+
+  const handleSetDisappearTimer = async (seconds) => {
+    try {
+      await apiRequest(`/messages/conversation/${conversationId}/disappear`, 'POST', { seconds });
+      setDisappearAfter(seconds || null);
+      setConversation(prev => prev ? ({ ...prev, disappear_after: seconds || null }) : prev);
+      setShowDisappearMenu(false);
+    } catch (err) {
+      console.error('Failed to set disappearing timer:', err);
+    }
+  };
 
   // Helper to update messages and save to persistent storage
   const persistMessages = (updater) => {
@@ -71,6 +84,9 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
 
       if (currentConv) {
         setConversation(currentConv);
+        if (currentConv.disappear_after !== undefined) {
+          setDisappearAfter(currentConv.disappear_after || null);
+        }
       }
 
       const msgData = await apiRequest(`/messages/conversation/${conversationId}`);
@@ -231,6 +247,7 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
       if (msgData.latitude) formData.append('latitude', msgData.latitude);
       if (msgData.longitude) formData.append('longitude', msgData.longitude);
       if (msgData.duration) formData.append('duration', msgData.duration);
+      if (disappearAfter) formData.append('disappearAfter', disappearAfter);
 
       let res;
       try {
@@ -426,6 +443,58 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
           >
             <Search className="w-5 h-5" />
           </button>
+
+          {/* Disappearing Messages */}
+          <div className="relative">
+            <button
+              onClick={() => setShowDisappearMenu(d => !d)}
+              className={`p-2 rounded-xl transition-all flex items-center gap-1 ${
+                disappearAfter
+                  ? 'text-amber-400 bg-amber-950/40 border border-amber-800/60'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              }`}
+              title={disappearAfter ? `Disappearing Messages: ${disappearAfter}s` : 'Set Disappearing Messages'}
+            >
+              <Timer className="w-5 h-5" />
+              {disappearAfter ? (
+                <span className="text-[10px] font-bold text-amber-400">
+                  {disappearAfter < 60 ? `${disappearAfter}s` : disappearAfter < 3600 ? `${Math.round(disappearAfter / 60)}m` : disappearAfter < 86400 ? `${Math.round(disappearAfter / 3600)}h` : `${Math.round(disappearAfter / 86400)}d`}
+                </span>
+              ) : null}
+            </button>
+
+            {showDisappearMenu && (
+              <div className="absolute right-0 top-11 z-30 w-48 bg-slate-950 border border-slate-800 rounded-2xl p-1.5 shadow-2xl space-y-1 text-xs glass-panel">
+                <div className="px-2.5 py-1.5 text-[11px] font-semibold text-slate-400 border-b border-slate-800 flex items-center justify-between">
+                  <span>Disappearing Timer</span>
+                  <Clock className="w-3.5 h-3.5 text-slate-500" />
+                </div>
+                {[
+                  { label: 'Off', seconds: 0 },
+                  { label: '30 seconds', seconds: 30 },
+                  { label: '5 minutes', seconds: 300 },
+                  { label: '1 hour', seconds: 3600 },
+                  { label: '24 hours', seconds: 86400 },
+                  { label: '7 days', seconds: 604800 }
+                ].map(opt => (
+                  <button
+                    key={opt.seconds}
+                    onClick={() => handleSetDisappearTimer(opt.seconds || null)}
+                    className={`w-full px-3 py-2 text-left rounded-xl flex items-center justify-between transition-colors ${
+                      (disappearAfter === opt.seconds || (!disappearAfter && opt.seconds === 0))
+                        ? 'bg-indigo-600 text-white font-bold'
+                        : 'text-slate-300 hover:bg-slate-800'
+                    }`}
+                  >
+                    <span>{opt.label}</span>
+                    {(disappearAfter === opt.seconds || (!disappearAfter && opt.seconds === 0)) && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Chat Theme Customization */}
           <button

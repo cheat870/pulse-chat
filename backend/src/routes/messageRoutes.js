@@ -7,7 +7,9 @@ const {
   sendMessage,
   editMessage,
   deleteMessage,
-  toggleReaction
+  toggleReaction,
+  purgeExpiredMessages,
+  setDisappearingTimer
 } = require('../controllers/messageController');
 
 router.use(authenticateToken);
@@ -17,5 +19,7 @@ router.post('/send', upload.single('file'), sendMessage);
 router.put('/:messageId', editMessage);
 router.delete('/:messageId', deleteMessage);
 router.post('/:messageId/reaction', toggleReaction);
+router.post('/conversation/:conversationId/disappear', setDisappearingTimer);
+router.delete('/purge/expired', purgeExpiredMessages);
 
 module.exports = router;

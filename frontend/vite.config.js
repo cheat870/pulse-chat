@@ -36,7 +36,8 @@ export default defineConfig({
             handler: 'CacheFirst',
             options: { cacheName: 'gif-cache', expiration: { maxEntries: 100, maxAgeSeconds: 3600 } }
           }
-        ]
+        ],
+        importScripts: ['/sw-push.js']
       },
       devOptions: { enabled: false }
     })

@@ -344,6 +344,10 @@ function initDatabase() {
 
   const msgCols = db.prepare("PRAGMA table_info(messages)").all().map(c => c.name);
   if (!msgCols.includes('reply_to_id')) db.exec("ALTER TABLE messages ADD COLUMN reply_to_id TEXT");
+  if (!msgCols.includes('expires_at')) db.exec("ALTER TABLE messages ADD COLUMN expires_at TEXT DEFAULT NULL");
+
+  const convCols = db.prepare("PRAGMA table_info(conversations)").all().map(c => c.name);
+  if (!convCols.includes('disappear_after')) db.exec("ALTER TABLE conversations ADD COLUMN disappear_after INTEGER DEFAULT NULL");
 
   console.log('✅ SQLite Database Tables verified successfully.');
 }

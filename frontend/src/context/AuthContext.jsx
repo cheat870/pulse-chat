@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { apiRequest } from '../services/api';
 import { saveLocalUserProfile, getLocalUserProfile, syncDataToServer } from '../services/persistence';
+import { subscribeToPushNotifications } from '../services/pushNotification';
+
 
 const AuthContext = createContext();
 
@@ -83,6 +85,8 @@ export function AuthProvider({ children }) {
           });
           // Auto-sync profile to server in case server DB was restarted
           syncDataToServer();
+          // Attempt push notification subscription quietly
+          subscribeToPushNotifications().catch(() => {});
         }
       } catch (err) {
         if (err.status === 401) {
@@ -109,6 +113,7 @@ export function AuthProvider({ children }) {
     localStorage.setItem('pulsechat_token', data.token);
     setToken(data.token);
     persistUser(data.user);
+    subscribeToPushNotifications().catch(() => {});
     return data;
   };
 
@@ -117,6 +122,7 @@ export function AuthProvider({ children }) {
     localStorage.setItem('pulsechat_token', data.token);
     setToken(data.token);
     persistUser(data.user);
+    subscribeToPushNotifications().catch(() => {});
     return data;
   };
 
@@ -125,6 +131,7 @@ export function AuthProvider({ children }) {
     localStorage.setItem('pulsechat_token', data.token);
     setToken(data.token);
     persistUser(data.user);
+    subscribeToPushNotifications().catch(() => {});
     return data;
   };
 
