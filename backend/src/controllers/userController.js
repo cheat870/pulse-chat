@@ -1,4 +1,5 @@
 const { db } = require('../config/database');
+const { uploadMedia } = require('../services/storageService');
 
 function searchUsers(req, res) {
   try {
@@ -97,14 +98,14 @@ function getProfile(req, res) {
   }
 }
 
-function updateProfile(req, res) {
+async function updateProfile(req, res) {
   try {
     const userId = req.user.id;
     const { username, statusText, status_text, bio, phone } = req.body;
 
     let avatarUrl = req.user.avatar_url;
     if (req.file) {
-      avatarUrl = `/uploads/avatars/${req.file.filename}`;
+      avatarUrl = await uploadMedia(req.file, 'avatars');
     }
 
     if (username && username.trim() !== req.user.username) {

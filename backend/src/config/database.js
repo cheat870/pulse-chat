@@ -1,13 +1,48 @@
-const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
 const dbPath = path.join(__dirname, '../../pulsechat.db');
-const db = new Database(dbPath);
+
+let db;
+const isTurso = Boolean(process.env.TURSO_DATABASE_URL);
+
+if (isTurso) {
+  try {
+    const LibsqlDatabase = require('libsql');
+    console.log('🌐 [Cloud DB] Initializing Turso LibSQL at:', process.env.TURSO_DATABASE_URL);
+    db = new LibsqlDatabase(dbPath, {
+      syncUrl: process.env.TURSO_DATABASE_URL,
+      authToken: process.env.TURSO_AUTH_TOKEN
+    });
+
+    if (typeof db.sync === 'function') {
+      try {
+        db.sync();
+        console.log('✅ [Cloud DB] Turso initial synchronization completed.');
+      } catch (e) {
+        console.warn('Turso initial sync warning:', e.message);
+      }
+      // Periodically sync every 30 seconds
+      setInterval(() => {
+        try { db.sync(); } catch (e) { console.warn('Turso background sync warning:', e.message); }
+      }, 30000);
+    }
+  } catch (err) {
+    console.warn('⚠️ Could not connect to Turso, falling back to local SQLite:', err.message);
+    const BetterSqlite = require('better-sqlite3');
+    db = new BetterSqlite(dbPath);
+  }
+} else {
+  const BetterSqlite = require('better-sqlite3');
+  db = new BetterSqlite(dbPath);
+}
 
 // Enable Foreign Keys & Write-Ahead Logging for concurrency
-db.pragma('foreign_keys = ON');
-db.pragma('journal_mode = WAL');
+try {
+  db.pragma('foreign_keys = ON');
+  db.pragma('journal_mode = WAL');
+} catch (e) {}
+
 
 function initDatabase() {
   console.log('📦 Initializing SQLite Database at:', dbPath);

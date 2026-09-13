@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { db } = require('../config/database');
+const { uploadMedia, deleteMedia } = require('../services/storageService');
 
 // ── Get Social Feed Posts ─────────────────────────────────────────────────────
 function getFeed(req, res) {
@@ -67,7 +68,7 @@ function getFeed(req, res) {
 }
 
 // ── Create a New Post (Text / Photo / Video) ───────────────────────────────────
-function createPost(req, res) {
+async function createPost(req, res) {
   try {
     const userId = req.user.id;
     const { content, mediaType, mediaUrl: inputMediaUrl } = req.body;
@@ -76,13 +77,14 @@ function createPost(req, res) {
     let finalMediaType = mediaType || 'TEXT';
 
     if (req.file) {
-      if (req.file.mimetype.startsWith('image/')) {
-        finalMediaType = 'PHOTO';
-        mediaUrl = `/uploads/photos/${req.file.filename}`;
-      } else if (req.file.mimetype.startsWith('video/')) {
+      let folder = 'photos';
+      if (req.file.mimetype && req.file.mimetype.startsWith('video/')) {
         finalMediaType = 'VIDEO';
-        mediaUrl = `/uploads/videos/${req.file.filename}`;
+        folder = 'videos';
+      } else {
+        finalMediaType = 'PHOTO';
       }
+      mediaUrl = await uploadMedia(req.file, folder);
     }
 
     if (!content && !mediaUrl) {
@@ -130,14 +132,18 @@ function createPost(req, res) {
 }
 
 // ── Delete a Post ─────────────────────────────────────────────────────────────
-function deletePost(req, res) {
+async function deletePost(req, res) {
   try {
     const userId = req.user.id;
     const { postId } = req.params;
 
-    const post = db.prepare('SELECT id, user_id FROM posts WHERE id = ?').get(postId);
+    const post = db.prepare('SELECT id, user_id, media_url FROM posts WHERE id = ?').get(postId);
     if (!post) return res.status(404).json({ error: 'Post not found' });
     if (post.user_id !== userId) return res.status(403).json({ error: 'Not authorized to delete this post' });
+
+    if (post.media_url) {
+      await deleteMedia(post.media_url);
+    }
 
     db.prepare('DELETE FROM posts WHERE id = ?').run(postId);
 

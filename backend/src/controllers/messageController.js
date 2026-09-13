@@ -1,5 +1,7 @@
 const crypto = require('crypto');
 const { db } = require('../config/database');
+const { uploadMedia } = require('../services/storageService');
+
 
 function getMessages(req, res) {
   try {
@@ -91,7 +93,7 @@ function getMessages(req, res) {
   }
 }
 
-function sendMessage(req, res) {
+async function sendMessage(req, res) {
   try {
     const userId = req.user.id;
     const { conversationId, type = 'TEXT', content, replyToId, latitude, longitude, duration, peerId, peerUsername, disappearAfter } = req.body;
@@ -138,7 +140,7 @@ function sendMessage(req, res) {
       else if (req.file.mimetype.startsWith('video/')) folder = 'videos';
       else if (req.file.mimetype.startsWith('audio/') || type === 'VOICE') folder = 'voice';
 
-      mediaUrl = `/uploads/${folder}/${req.file.filename}`;
+      mediaUrl = await uploadMedia(req.file, folder);
       fileName = req.file.originalname;
       fileSize = req.file.size;
     }

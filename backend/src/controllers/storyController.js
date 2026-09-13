@@ -2,6 +2,7 @@ const { db } = require('../config/database');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 const fs = require('fs');
+const { uploadMedia, deleteMedia } = require('../services/storageService');
 
 // GET /api/stories - get active stories from friends and self
 exports.getStories = (req, res) => {
@@ -55,7 +56,7 @@ exports.getStories = (req, res) => {
 };
 
 // POST /api/stories - create story
-exports.createStory = (req, res) => {
+exports.createStory = async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
@@ -68,13 +69,14 @@ exports.createStory = (req, res) => {
     }
 
     let finalMediaType = media_type || 'PHOTO';
-    let mediaUrl = `/uploads/photos/${mediaFile.filename}`;
+    let folder = 'photos';
 
-    if (mediaFile.mimetype.startsWith('video/')) {
+    if (mediaFile.mimetype && mediaFile.mimetype.startsWith('video/')) {
       finalMediaType = 'VIDEO';
-      mediaUrl = `/uploads/videos/${mediaFile.filename}`;
+      folder = 'videos';
     }
 
+    const mediaUrl = await uploadMedia(mediaFile, folder);
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
     const id = uuidv4();
 
@@ -120,7 +122,7 @@ exports.viewStory = (req, res) => {
 };
 
 // DELETE /api/stories/:id - delete own story
-exports.deleteStory = (req, res) => {
+exports.deleteStory = async (req, res) => {
   try {
     const userId = req.user?.id;
     const { id } = req.params;
@@ -130,9 +132,7 @@ exports.deleteStory = (req, res) => {
     if (story.user_id !== userId) return res.status(403).json({ error: 'Unauthorized' });
 
     if (story.media_url) {
-      try {
-        fs.unlinkSync(path.join(__dirname, '../../', story.media_url));
-      } catch (e) {}
+      await deleteMedia(story.media_url);
     }
 
     db.prepare('DELETE FROM stories WHERE id = ?').run(id);
