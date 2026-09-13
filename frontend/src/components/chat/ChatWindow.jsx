@@ -59,11 +59,13 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
   const [isE2EEEnabled, setIsE2EEEnabled] = useState(false);
   const [e2eeSharedKey, setE2eeSharedKey] = useState(null);
   const [peerHasE2EEKey, setPeerHasE2EEKey] = useState(false);
+  const e2eeSharedKeyRef = useRef(null);
 
   // Derive E2EE shared key with 1-on-1 chat peer
   useEffect(() => {
     if (!conversation || conversation.type === 'GROUP' || !conversation.peer?.id || !user?.id) {
       setE2eeSharedKey(null);
+      e2eeSharedKeyRef.current = null;
       setPeerHasE2EEKey(false);
       return;
     }
@@ -74,6 +76,7 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
         if (!isMounted) return;
         if (key) {
           setE2eeSharedKey(key);
+          e2eeSharedKeyRef.current = key;
           setPeerHasE2EEKey(true);
         } else {
           setPeerHasE2EEKey(false);
@@ -148,15 +151,27 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
 
       const msgData = await apiRequest(`/messages/conversation/${conversationId}`);
       if (msgData && msgData.messages) {
+        let activeKey = e2eeSharedKeyRef.current;
+        if (!activeKey && currentConv?.peer?.id && user?.id) {
+          try {
+            activeKey = await getOrDeriveSharedKey(user.id, currentConv.peer.id);
+            if (activeKey) {
+              e2eeSharedKeyRef.current = activeKey;
+              setE2eeSharedKey(activeKey);
+              setPeerHasE2EEKey(true);
+            }
+          } catch (e) {}
+        }
+
         if (msgData.messages.length > 0) {
           saveLocalMessages(conversationId, msgData.messages);
-          const processed = e2eeSharedKey ? await decryptMessageList(msgData.messages, e2eeSharedKey) : msgData.messages;
+          const processed = activeKey ? await decryptMessageList(msgData.messages, activeKey) : msgData.messages;
           setMessages(processed);
         } else {
           // If server returned empty, fallback to locally stored messages and sync to server
           const local = getLocalMessages(conversationId);
           if (local.length > 0) {
-            const processed = e2eeSharedKey ? await decryptMessageList(local, e2eeSharedKey) : local;
+            const processed = activeKey ? await decryptMessageList(local, activeKey) : local;
             setMessages(processed);
             syncDataToServer();
           }
@@ -243,17 +258,35 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
 
     socket.emit('join_conversation', conversationId);
 
-    const handleNewMessage = (data) => {
+    const handleNewMessage = async (data) => {
       if (data.conversationId === conversationId && data.message) {
         const rawMsg = data.message;
-        if (rawMsg.content && isE2EEMessage(rawMsg.content) && e2eeSharedKey) {
-          decryptE2EEMessage(rawMsg.content, e2eeSharedKey).then(dec => {
+        if (rawMsg.content && isE2EEMessage(rawMsg.content)) {
+          let currentKey = e2eeSharedKeyRef.current;
+          if (!currentKey && conversation?.peer?.id && user?.id) {
+            try {
+              currentKey = await getOrDeriveSharedKey(user.id, conversation.peer.id);
+              if (currentKey) {
+                e2eeSharedKeyRef.current = currentKey;
+                setE2eeSharedKey(currentKey);
+                setPeerHasE2EEKey(true);
+              }
+            } catch (e) {}
+          }
+          if (currentKey) {
+            const dec = await decryptE2EEMessage(rawMsg.content, currentKey);
             const decMsg = { ...rawMsg, content: dec.text, isE2EE: true };
             persistMessages(prev => {
               if (prev.some(m => m.id === decMsg.id)) return prev;
               return [...prev, decMsg];
             });
-          });
+          } else {
+            // Keep with isE2EE flag so UI shows it as encrypted
+            persistMessages(prev => {
+              if (prev.some(m => m.id === rawMsg.id)) return prev;
+              return [...prev, { ...rawMsg, isE2EE: true }];
+            });
+          }
         } else {
           persistMessages(prev => {
             // Deduplicate: skip if message ID already exists (own message added locally)

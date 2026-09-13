@@ -112,7 +112,7 @@ export default function MessageItem({ message, onReply, onEdit, onDelete, onReac
           {/* VOICE MESSAGE (Audio Waveform) */}
           {message.type === 'VOICE' && (
             <div className="min-w-[240px]">
-              <AudioWaveform mode="play" audioSrc={mediaSource} barCount={35} />
+              <AudioWaveform mode="play" audioSrc={mediaSource} barCount={35} initialDuration={message.duration} />
             </div>
           )}
 

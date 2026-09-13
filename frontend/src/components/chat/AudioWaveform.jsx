@@ -5,14 +5,14 @@ import React, { useRef, useEffect, useState } from 'react';
 //   mode="record"  — live mic input bars (pass mediaStream)
 //   mode="play"    — playback bars synced to <audio> element (pass audioSrc)
 
-export default function AudioWaveform({ mode = 'play', mediaStream = null, audioSrc = null, barCount = 40 }) {
+export default function AudioWaveform({ mode = 'play', mediaStream = null, audioSrc = null, barCount = 40, initialDuration = 0 }) {
   const canvasRef = useRef(null);
   const animFrameRef = useRef(null);
   const analyserRef = useRef(null);
   const audioRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [duration, setDuration] = useState(() => Number.isFinite(initialDuration) ? initialDuration : 0);
 
   // Build an AnalyserNode from a stream (record mode)
   useEffect(() => {
@@ -100,7 +100,7 @@ export default function AudioWaveform({ mode = 'play', mediaStream = null, audio
   };
 
   const formatTime = (s) => {
-    if (!s || isNaN(s)) return '0:00';
+    if (!Number.isFinite(s) || s < 0) return '0:00';
     const m = Math.floor(s / 60);
     const sec = Math.floor(s % 60);
     return `${m}:${sec.toString().padStart(2, '0')}`;
@@ -160,10 +160,27 @@ export default function AudioWaveform({ mode = 'play', mediaStream = null, audio
       <audio
         ref={audioRef}
         src={audioSrc}
-        onLoadedMetadata={(e) => setDuration(e.target.duration)}
+        preload="metadata"
+        onLoadedMetadata={(e) => {
+          const d = e.target.duration;
+          if (Number.isFinite(d) && d > 0) {
+            setDuration(d);
+          } else if (initialDuration && Number.isFinite(initialDuration)) {
+            setDuration(initialDuration);
+          }
+        }}
+        onDurationChange={(e) => {
+          const d = e.target.duration;
+          if (Number.isFinite(d) && d > 0) {
+            setDuration(d);
+          }
+        }}
         onTimeUpdate={(e) => {
           const d = e.target.duration;
-          if (d) setProgress(e.target.currentTime / d);
+          const effectiveDuration = Number.isFinite(d) && d > 0 ? d : duration;
+          if (effectiveDuration > 0) {
+            setProgress(e.target.currentTime / effectiveDuration);
+          }
         }}
         onEnded={() => { setIsPlaying(false); setProgress(0); }}
       />
