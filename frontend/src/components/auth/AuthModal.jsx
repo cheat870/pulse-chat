@@ -32,8 +32,9 @@ export default function AuthModal() {
   const [loading, setLoading] = useState(false);
 
   // Google OAuth State
+  const DEFAULT_GOOGLE_CLIENT_ID = '715090036708-71i01i4rjoql423jajv2580vm6up658t.apps.googleusercontent.com';
   const [googleClientId, setGoogleClientId] = useState(() => {
-    return import.meta.env.VITE_GOOGLE_CLIENT_ID || localStorage.getItem('pulsechat_google_client_id') || '';
+    return import.meta.env.VITE_GOOGLE_CLIENT_ID || localStorage.getItem('pulsechat_google_client_id') || DEFAULT_GOOGLE_CLIENT_ID;
   });
   const [showGoogleConfig, setShowGoogleConfig] = useState(false);
   const [clientIdInput, setClientIdInput] = useState('');
