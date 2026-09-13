@@ -39,8 +39,28 @@ export default function AuthModal() {
   const [showGoogleConfig, setShowGoogleConfig] = useState(false);
   const [clientIdInput, setClientIdInput] = useState('');
 
-  // Check if returning from Google OAuth redirect with access_token in URL hash
+  const fetchGoogleProfileAndLogin = async (accessToken) => {
+    try {
+      setLoading(true);
+      setError('');
+      const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      const googleProfile = await res.json();
+      if (!googleProfile.email) {
+        throw new Error('Could not retrieve email from Google account');
+      }
+      await loginWithGoogle({ profile: googleProfile });
+    } catch (err) {
+      setError(err.message || 'Failed to complete Google Sign-In');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Check if returning from Google OAuth redirect or postMessage from popup
   useEffect(() => {
+    // 1. Direct URL hash check (for full-page redirects)
     try {
       const hash = window.location.hash;
       if (hash && hash.includes('access_token=')) {
@@ -48,21 +68,23 @@ export default function AuthModal() {
         const accessToken = params.get('access_token');
         if (accessToken) {
           window.history.replaceState(null, null, window.location.pathname);
-          setLoading(true);
-          fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-            headers: { Authorization: `Bearer ${accessToken}` }
-          })
-            .then(r => r.json())
-            .then(googleProfile => {
-              if (googleProfile && googleProfile.email) {
-                return loginWithGoogle({ profile: googleProfile });
-              }
-            })
-            .catch(e => setError(e.message || 'Google Sign-In failed'))
-            .finally(() => setLoading(false));
+          fetchGoogleProfileAndLogin(accessToken);
         }
       }
     } catch {}
+
+    // 2. Listen for postMessage from popup window
+    const handleMessage = (event) => {
+      if (event.data && event.data.type === 'GOOGLE_OAUTH_TOKEN' && event.data.hash) {
+        const params = new URLSearchParams(event.data.hash.substring(1));
+        const accessToken = params.get('access_token');
+        if (accessToken) {
+          fetchGoogleProfileAndLogin(accessToken);
+        }
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
   }, []);
 
   const handleGoogleSignIn = () => {
@@ -75,53 +97,53 @@ export default function AuthModal() {
 
     setLoading(true);
 
-    // Primary: Google Identity Services OAuth2 Token Client (opens standard accounts.google.com popup)
-    if (window.google?.accounts?.oauth2) {
-      try {
-        const client = window.google.accounts.oauth2.initTokenClient({
-          client_id: clientId,
-          scope: 'email profile openid',
-          callback: async (tokenResponse) => {
-            if (tokenResponse.error) {
-              setLoading(false);
-              if (tokenResponse.error !== 'popup_closed_by_user') {
-                setError(tokenResponse.error_description || tokenResponse.error || 'Google Sign-In cancelled');
-              }
-              return;
-            }
-
-            try {
-              const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
-              });
-              const googleProfile = await res.json();
-              if (!googleProfile.email) {
-                throw new Error('Could not retrieve email from Google');
-              }
-              await loginWithGoogle({ profile: googleProfile });
-            } catch (err) {
-              setError(err.message || 'Failed to complete Google Sign-In');
-            } finally {
-              setLoading(false);
-            }
-          }
-        });
-        client.requestAccessToken({ prompt: 'select_account' });
-        return;
-      } catch (err) {
-        console.warn('initTokenClient error, using direct popup fallback:', err);
-      }
-    }
-
-    // Direct OAuth2 popup fallback (guaranteed to work across all browsers without gsi/transform)
     const width = 500;
-    const height = 600;
+    const height = 650;
     const left = window.screen.width / 2 - width / 2;
     const top = window.screen.height / 2 - height / 2;
     const redirectUri = window.location.origin;
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=email%20profile%20openid&prompt=select_account`;
-    window.open(authUrl, 'GoogleSignIn', `width=${width},height=${height},top=${top},left=${left}`);
-    setLoading(false);
+
+    const popup = window.open(
+      authUrl,
+      'google_oauth_popup',
+      `width=${width},height=${height},top=${top},left=${left},status=no,toolbar=no,menubar=no`
+    );
+
+    if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+      // If popup was blocked by browser, redirect current page directly
+      window.location.href = authUrl;
+      return;
+    }
+
+    // Polling interval to detect when Google redirects popup back to our domain
+    const timer = setInterval(() => {
+      try {
+        if (!popup || popup.closed) {
+          clearInterval(timer);
+          setLoading(false);
+          return;
+        }
+
+        if (popup.location.href && popup.location.href.includes(window.location.origin)) {
+          clearInterval(timer);
+          const hash = popup.location.hash;
+          popup.close();
+
+          if (hash && hash.includes('access_token=')) {
+            const params = new URLSearchParams(hash.substring(1));
+            const accessToken = params.get('access_token');
+            if (accessToken) {
+              fetchGoogleProfileAndLogin(accessToken);
+            }
+          } else {
+            setLoading(false);
+          }
+        }
+      } catch (e) {
+        // Cross-origin check while popup is still on accounts.google.com (normal behavior)
+      }
+    }, 500);
   };
 
   const handleSaveGoogleClientId = (e) => {
