@@ -4,7 +4,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useSound } from '../../context/SoundContext';
 import { useSocket } from '../../context/SocketContext';
 import { apiRequest, getMediaUrl } from '../../services/api';
-import { getLocalConversations, saveLocalConversations, syncDataToServer } from '../../services/persistence';
+import { getLocalConversations, saveLocalConversations, syncDataToServer, deduplicateConversations } from '../../services/persistence';
 import NotificationCenter from '../notifications/NotificationCenter';
 import {
   MessageSquare, Users, UserPlus, Sun, Moon, Volume2, VolumeX, LogOut,
@@ -113,7 +113,8 @@ export default function Sidebar({
     };
   }, [socket]);
 
-  const filteredConversations = (conversations || []).filter(c => {
+  const cleanConversations = deduplicateConversations(conversations || []);
+  const filteredConversations = cleanConversations.filter(c => {
     if (!c) return false;
     const convName = c.name || c.peer?.username || 'Chat';
     const matchesSearch = convName.toLowerCase().includes((search || '').toLowerCase());

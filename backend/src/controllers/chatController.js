@@ -65,7 +65,34 @@ function getConversations(req, res) {
       };
     });
 
-    return res.json({ conversations: result });
+    // Deduplicate and auto-merge duplicate private conversations with the same peer
+    const seenPeers = new Map();
+    const deduplicatedResults = [];
+
+    for (const conv of result) {
+      if (conv.type === 'PRIVATE' && conv.peer && conv.peer.id) {
+        if (!seenPeers.has(conv.peer.id)) {
+          seenPeers.set(conv.peer.id, conv);
+          deduplicatedResults.push(conv);
+        } else {
+          // Found duplicate private conversation with same peer in DB! Merge it into canonical
+          const canonical = seenPeers.get(conv.peer.id);
+          try {
+            // Move all messages from duplicate conversation to canonical
+            db.prepare('UPDATE messages SET conversation_id = ? WHERE conversation_id = ?').run(canonical.id, conv.id);
+            // Delete duplicate conversation members and conversation
+            db.prepare('DELETE FROM conversation_members WHERE conversation_id = ?').run(conv.id);
+            db.prepare('DELETE FROM conversations WHERE id = ?').run(conv.id);
+          } catch (e) {
+            console.warn('Failed to merge duplicate conversation in DB:', e.message);
+          }
+        }
+      } else {
+        deduplicatedResults.push(conv);
+      }
+    }
+
+    return res.json({ conversations: deduplicatedResults });
   } catch (err) {
     console.error('Get Conversations Error:', err);
     return res.status(500).json({ error: 'Failed to fetch conversations' });
@@ -399,18 +426,39 @@ function syncRestoreData(req, res) {
     }
 
     // 3. Restore conversations & members
+    const convIdMap = new Map();
     for (const c of conversations) {
       if (!c || !c.id) continue;
+
+      let canonicalId = c.id;
+      if (c.type === 'PRIVATE' && c.peer && c.peer.id) {
+        // Check if a private conversation already exists between current user and this peer
+        const existingPrivate = db.prepare(`
+          SELECT c.id FROM conversations c
+          JOIN conversation_members cm1 ON c.id = cm1.conversation_id AND cm1.user_id = ?
+          JOIN conversation_members cm2 ON c.id = cm2.conversation_id AND cm2.user_id = ?
+          WHERE c.type = 'PRIVATE'
+        `).get(currentUserId, c.peer.id);
+
+        if (existingPrivate) {
+          canonicalId = existingPrivate.id;
+          convIdMap.set(c.id, canonicalId);
+          continue;
+        }
+      }
+
+      convIdMap.set(c.id, canonicalId);
+
       db.prepare(`
         INSERT OR IGNORE INTO conversations (id, type, name, avatar_url, created_at, updated_at)
         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      `).run(c.id, c.type || 'PRIVATE', c.name || null, c.avatarUrl || null);
+      `).run(canonicalId, c.type || 'PRIVATE', c.name || null, c.avatarUrl || null);
 
       // Add current user
       db.prepare(`
         INSERT OR IGNORE INTO conversation_members (id, conversation_id, user_id, role, joined_at)
         VALUES (?, ?, ?, 'MEMBER', CURRENT_TIMESTAMP)
-      `).run(crypto.randomUUID(), c.id, currentUserId);
+      `).run(crypto.randomUUID(), canonicalId, currentUserId);
 
       // Add other peer or members
       if (c.peer && c.peer.id) {
@@ -422,7 +470,7 @@ function syncRestoreData(req, res) {
         db.prepare(`
           INSERT OR IGNORE INTO conversation_members (id, conversation_id, user_id, role, joined_at)
           VALUES (?, ?, ?, 'MEMBER', CURRENT_TIMESTAMP)
-        `).run(crypto.randomUUID(), c.id, c.peer.id);
+        `).run(crypto.randomUUID(), canonicalId, c.peer.id);
 
         if (c.type === 'PRIVATE') {
           db.prepare(`
@@ -436,6 +484,7 @@ function syncRestoreData(req, res) {
     // 4. Restore messages
     for (const m of messages) {
       if (!m || !m.id || !m.conversation_id) continue;
+      const convId = convIdMap.get(m.conversation_id) || m.conversation_id;
       const senderId = m.sender_id || currentUserId;
 
       // Ensure sender exists
@@ -448,14 +497,14 @@ function syncRestoreData(req, res) {
       db.prepare(`
         INSERT OR IGNORE INTO conversations (id, type, created_at, updated_at)
         VALUES (?, 'PRIVATE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      `).run(m.conversation_id);
+      `).run(convId);
 
       db.prepare(`
         INSERT OR IGNORE INTO messages (id, conversation_id, sender_id, type, content, media_url, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `).run(
         m.id,
-        m.conversation_id,
+        convId,
         senderId,
         m.type || 'TEXT',
         m.content || '',

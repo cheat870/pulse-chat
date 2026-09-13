@@ -80,10 +80,65 @@ export function saveLocalFriends(friends) {
   }
 }
 
+export function deduplicateConversations(convList) {
+  if (!Array.isArray(convList)) return [];
+
+  const privateByPeer = new Map();
+  const groupsById = new Map();
+
+  // Sort newest first by last message created_at or updatedAt or createdAt
+  const sorted = [...convList].sort((a, b) => {
+    const timeA = new Date(a?.lastMessage?.created_at || a?.updatedAt || a?.createdAt || 0).getTime();
+    const timeB = new Date(b?.lastMessage?.created_at || b?.updatedAt || b?.createdAt || 0).getTime();
+    return timeB - timeA;
+  });
+
+  for (const c of sorted) {
+    if (!c || !c.id) continue;
+    if (c.type === 'PRIVATE') {
+      const peerId = c.peer?.id || c.peerId || c.name;
+      if (!peerId) {
+        if (!groupsById.has(c.id)) groupsById.set(c.id, c);
+        continue;
+      }
+
+      if (!privateByPeer.has(peerId)) {
+        privateByPeer.set(peerId, c);
+      } else {
+        // Merge messages from duplicate into canonical
+        const canonical = privateByPeer.get(peerId);
+        try {
+          const dupMsgs = getLocalMessages(c.id);
+          if (dupMsgs && dupMsgs.length > 0) {
+            saveLocalMessages(canonical.id, dupMsgs);
+            try { localStorage.removeItem(`${MSG_PREFIX}${c.id}`); } catch {}
+          }
+        } catch {}
+      }
+    } else {
+      if (!groupsById.has(c.id)) {
+        groupsById.set(c.id, c);
+      }
+    }
+  }
+
+  const result = [...Array.from(privateByPeer.values()), ...Array.from(groupsById.values())];
+  return result.sort((a, b) => {
+    const timeA = new Date(a?.lastMessage?.created_at || a?.updatedAt || a?.createdAt || 0).getTime();
+    const timeB = new Date(b?.lastMessage?.created_at || b?.updatedAt || b?.createdAt || 0).getTime();
+    return timeB - timeA;
+  });
+}
+
 export function getLocalConversations() {
   try {
     const raw = localStorage.getItem(CONVS_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const list = raw ? JSON.parse(raw) : [];
+    const deduped = deduplicateConversations(list);
+    if (Array.isArray(list) && deduped.length !== list.length) {
+      localStorage.setItem(CONVS_KEY, JSON.stringify(deduped));
+    }
+    return deduped;
   } catch {
     return [];
   }
@@ -93,15 +148,12 @@ export function saveLocalConversations(convs) {
   if (!Array.isArray(convs) || convs.length === 0) return;
   try {
     const current = getLocalConversations();
-    const map = new Map();
-    current.forEach(c => { if (c && c.id) map.set(c.id, c); });
-    convs.forEach(c => { if (c && c.id) map.set(c.id, c); });
-    const merged = Array.from(map.values());
+    const merged = deduplicateConversations([...current, ...convs]);
     localStorage.setItem(CONVS_KEY, JSON.stringify(merged));
 
     // Also auto-save private chat peers to friends
     const extractedFriends = [];
-    convs.forEach(c => {
+    merged.forEach(c => {
       if (c && c.type === 'PRIVATE' && c.peer && c.peer.id) {
         extractedFriends.push({
           id: c.peer.id,
