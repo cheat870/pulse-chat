@@ -52,12 +52,16 @@ export default function Sidebar({
           const local = getLocalConversations();
           if (local.length > 0) {
             setConversations(local);
-            syncDataToServer();
+            syncDataToServer(true).then(() => {
+              setTimeout(fetchConversations, 2000);
+            });
           }
         }
       }
     } catch (err) {
       console.error('Failed to load conversations:', err);
+      const local = getLocalConversations();
+      if (local.length > 0) setConversations(local);
     }
   };
 

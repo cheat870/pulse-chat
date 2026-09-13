@@ -423,6 +423,13 @@ function syncRestoreData(req, res) {
           INSERT OR IGNORE INTO conversation_members (id, conversation_id, user_id, role, joined_at)
           VALUES (?, ?, ?, 'MEMBER', CURRENT_TIMESTAMP)
         `).run(crypto.randomUUID(), c.id, c.peer.id);
+
+        if (c.type === 'PRIVATE') {
+          db.prepare(`
+            INSERT OR IGNORE INTO friendships (id, sender_id, receiver_id, status, created_at)
+            VALUES (?, ?, ?, 'ACCEPTED', CURRENT_TIMESTAMP)
+          `).run(crypto.randomUUID(), currentUserId, c.peer.id);
+        }
       }
     }
 

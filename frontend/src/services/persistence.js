@@ -31,7 +31,35 @@ export function saveLocalUserProfile(profile) {
 export function getLocalFriends() {
   try {
     const raw = localStorage.getItem(FRIENDS_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const list = raw ? JSON.parse(raw) : [];
+    const map = new Map();
+    if (Array.isArray(list)) {
+      list.forEach(f => { if (f && f.id) map.set(f.id, f); });
+    }
+
+    // Auto-discover friends from persisted private conversations
+    try {
+      const convRaw = localStorage.getItem(CONVS_KEY);
+      const convs = convRaw ? JSON.parse(convRaw) : [];
+      if (Array.isArray(convs)) {
+        convs.forEach(c => {
+          if (c && c.type === 'PRIVATE' && c.peer && c.peer.id) {
+            if (!map.has(c.peer.id)) {
+              map.set(c.peer.id, {
+                id: c.peer.id,
+                username: c.peer.username || 'Friend',
+                avatar_url: c.peer.avatar_url || null,
+                status_text: c.peer.status_text || 'Available',
+                is_online: c.peer.is_online || 0,
+                last_seen: c.peer.last_seen || new Date().toISOString()
+              });
+            }
+          }
+        });
+      }
+    } catch {}
+
+    return Array.from(map.values());
   } catch {
     return [];
   }
@@ -70,6 +98,24 @@ export function saveLocalConversations(convs) {
     convs.forEach(c => { if (c && c.id) map.set(c.id, c); });
     const merged = Array.from(map.values());
     localStorage.setItem(CONVS_KEY, JSON.stringify(merged));
+
+    // Also auto-save private chat peers to friends
+    const extractedFriends = [];
+    convs.forEach(c => {
+      if (c && c.type === 'PRIVATE' && c.peer && c.peer.id) {
+        extractedFriends.push({
+          id: c.peer.id,
+          username: c.peer.username || 'Friend',
+          avatar_url: c.peer.avatar_url || null,
+          status_text: c.peer.status_text || 'Available',
+          is_online: c.peer.is_online || 0,
+          last_seen: c.peer.last_seen || new Date().toISOString()
+        });
+      }
+    });
+    if (extractedFriends.length > 0) {
+      saveLocalFriends(extractedFriends);
+    }
   } catch (e) {
     console.warn('saveLocalConversations error:', e);
   }
@@ -100,9 +146,9 @@ export function saveLocalMessages(convId, messages) {
 
 // Background Self-Healing Sync Engine
 let lastSyncTime = 0;
-export async function syncDataToServer() {
-  // Throttle sync to at most once every 15 seconds
-  if (Date.now() - lastSyncTime < 15000) return;
+export async function syncDataToServer(force = false) {
+  // Throttle sync to at most once every 15 seconds (bypass with force=true)
+  if (!force && Date.now() - lastSyncTime < 15000) return;
   lastSyncTime = Date.now();
 
   try {

@@ -29,7 +29,7 @@ export default function FriendsView({ onStartChat, onBack }) {
   const [actionLoading, setActionLoading] = useState({});
 
   // Fetch Friends List
-  const fetchFriends = async () => {
+  const fetchFriends = async ({ afterSync } = {}) => {
     try {
       const data = await apiRequest('/friends');
       if (data && data.friends) {
@@ -37,16 +37,24 @@ export default function FriendsView({ onStartChat, onBack }) {
           setFriends(data.friends);
           saveLocalFriends(data.friends);
         } else {
-          // If server returned empty, use locally persisted friends and re-sync to server
+          // Server returned empty (e.g. after Render restart) — show local cache immediately
           const local = getLocalFriends();
           if (local.length > 0) {
             setFriends(local);
-            syncDataToServer();
+            if (!afterSync) {
+              // Sync local data back to server immediately, then re-fetch after server has rebuilt friendships
+              syncDataToServer(true).then(() => {
+                setTimeout(() => fetchFriends({ afterSync: true }), 2000);
+              });
+            }
           }
         }
       }
     } catch (err) {
       console.error('Failed to load friends:', err);
+      // On network error, show local cache
+      const local = getLocalFriends();
+      if (local.length > 0) setFriends(local);
     }
   };
 
