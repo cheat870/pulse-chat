@@ -20,6 +20,7 @@ import GroupInfoModal from './components/group/GroupInfoModal';
 import ProfileModal from './components/profile/ProfileModal';
 import NotificationToast from './components/notifications/NotificationToast';
 import { apiRequest } from './services/api';
+import { getLocalConversations, saveLocalConversations } from './services/persistence';
 import { MessageSquare, Sparkles, Bot, Globe, Bookmark } from 'lucide-react';
 
 function MainApp() {
@@ -80,14 +81,53 @@ function MainApp() {
     return <AuthModal />;
   }
 
-  // Start direct chat from Friends list or Profile
-  const handleStartChatFromFriends = async (friendId) => {
-    try {
-      const res = await apiRequest('/chats/private', 'POST', { targetUserId: friendId });
-      setActiveConvId(res.conversationId);
+  // Start direct chat from Friends list or Profile (instant local navigation + background server sync)
+  const handleStartChatFromFriends = async (friendOrId) => {
+    const friendId = typeof friendOrId === 'object' ? friendOrId.id : friendOrId;
+    const friendUsername = typeof friendOrId === 'object' ? friendOrId.username : null;
+    const friendAvatar = typeof friendOrId === 'object' ? friendOrId.avatar_url : null;
+
+    if (!friendId) return;
+
+    // 1. Instant check: Do we already have an existing conversation with this peer locally?
+    const localConvs = getLocalConversations();
+    const existing = localConvs.find(c => c && c.type === 'PRIVATE' && (c.peer?.id === friendId || c.id === friendId));
+
+    if (existing) {
+      setActiveConvId(existing.id);
       setCurrentView('chat');
+    }
+
+    try {
+      const res = await apiRequest('/chats/private', 'POST', {
+        targetUserId: friendId,
+        targetUsername: friendUsername,
+        targetAvatar: friendAvatar
+      });
+      if (res && res.conversationId) {
+        setActiveConvId(res.conversationId);
+        setCurrentView('chat');
+      }
     } catch (err) {
-      alert(err.message || 'Could not start chat');
+      console.warn('Could not sync private chat with server:', err.message);
+      // If we didn't have a local conversation already, create one locally so user is never blocked!
+      if (!existing) {
+        const fallbackConvId = `conv_${Date.now()}`;
+        const newConv = {
+          id: fallbackConvId,
+          type: 'PRIVATE',
+          name: friendUsername || 'Chat',
+          peer: {
+            id: friendId,
+            username: friendUsername || 'Friend',
+            avatar_url: friendAvatar
+          },
+          updatedAt: new Date().toISOString()
+        };
+        saveLocalConversations([newConv]);
+        setActiveConvId(fallbackConvId);
+        setCurrentView('chat');
+      }
     }
   };
 

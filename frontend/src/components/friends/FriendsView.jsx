@@ -331,7 +331,7 @@ export default function FriendsView({ onStartChat, onBack }) {
 
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => onStartChat(friend.id)}
+                        onClick={() => onStartChat(friend)}
                         className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-md transition-all"
                       >
                         <MessageSquare className="w-3.5 h-3.5" />
@@ -507,7 +507,7 @@ export default function FriendsView({ onStartChat, onBack }) {
                     <div>
                       {user.friendshipStatus === 'FRIENDS' && (
                         <button
-                          onClick={() => onStartChat(user.id)}
+                          onClick={() => onStartChat(user)}
                           className="px-3.5 py-1.5 bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-semibold flex items-center gap-1.5 hover:bg-indigo-600 hover:text-white transition-all"
                         >
                           <MessageSquare className="w-3.5 h-3.5" />

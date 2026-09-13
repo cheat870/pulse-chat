@@ -149,7 +149,7 @@ export default function ProfilePage({ userId, onBack, onStartChat }) {
 
           {!isOwn && (
             <button
-              onClick={() => onStartChat && onStartChat(activeProfile.id)}
+              onClick={() => onStartChat && onStartChat(activeProfile)}
               className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors shadow-sm"
             >
               <MessageSquare className="w-3.5 h-3.5" />

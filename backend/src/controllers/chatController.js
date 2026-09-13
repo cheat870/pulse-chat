@@ -151,7 +151,7 @@ function getConversationById(req, res) {
 function getOrCreatePrivateChat(req, res) {
   try {
     const userId = req.user.id;
-    const { targetUserId } = req.body;
+    const { targetUserId, targetUsername, targetAvatar } = req.body;
 
     if (!targetUserId) {
       return res.status(400).json({ error: 'Target user ID is required' });
@@ -161,10 +161,23 @@ function getOrCreatePrivateChat(req, res) {
       return res.status(400).json({ error: 'Cannot create private chat with yourself' });
     }
 
-    const targetUser = db.prepare('SELECT id, username, avatar_url, is_online, last_seen FROM users WHERE id = ?').get(targetUserId);
+    let targetUser = db.prepare('SELECT id, username, avatar_url, is_online, last_seen FROM users WHERE id = ?').get(targetUserId);
     if (!targetUser) {
-      return res.status(404).json({ error: 'Target user not found' });
+      // Auto-heal stub user if DB restarted
+      const stubUsername = targetUsername || `user_${targetUserId.slice(0, 8)}`;
+      const stubEmail = `${targetUserId}@pulsechat.app`;
+      db.prepare(`
+        INSERT OR IGNORE INTO users (id, username, email, avatar_url, password_hash, created_at)
+        VALUES (?, ?, ?, ?, 'RESTORED_AUTH', CURRENT_TIMESTAMP)
+      `).run(targetUserId, stubUsername, stubEmail, targetAvatar || null);
+      targetUser = db.prepare('SELECT id, username, avatar_url, is_online, last_seen FROM users WHERE id = ?').get(targetUserId);
     }
+
+    // Ensure friendship exists
+    db.prepare(`
+      INSERT OR IGNORE INTO friendships (id, sender_id, receiver_id, status, created_at)
+      VALUES (?, ?, ?, 'ACCEPTED', CURRENT_TIMESTAMP)
+    `).run(crypto.randomUUID(), userId, targetUserId);
 
     // Check if private conversation already exists between these 2 users
     const existing = db.prepare(`
