@@ -162,12 +162,12 @@ export default function PostCard({ post, onDeletePost }) {
 
       {/* Media Display (Photo / Video) */}
       {mediaSource && (
-        <div className="bg-black/30 border-y border-slate-800/80 flex items-center justify-center max-h-[500px] overflow-hidden">
+        <div className="bg-slate-950/70 border-y border-slate-800/80 flex items-center justify-center max-h-[550px] w-full overflow-hidden">
           {postData.media_type === 'PHOTO' && (
             <img
               src={mediaSource}
               alt="Post media"
-              className="w-full max-h-[500px] object-cover"
+              className="w-full max-h-[550px] object-contain rounded-none select-none transition-all"
               onError={(e) => { e.target.onerror = null; e.target.src = 'https://placehold.co/600x400?text=Image+Unavailable'; }}
             />
           )}
@@ -176,7 +176,7 @@ export default function PostCard({ post, onDeletePost }) {
               src={mediaSource}
               controls
               playsInline
-              className="w-full max-h-[500px] object-contain bg-black"
+              className="w-full max-h-[550px] object-contain bg-black"
             />
           )}
         </div>
