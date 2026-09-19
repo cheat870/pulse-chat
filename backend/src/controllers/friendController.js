@@ -239,16 +239,15 @@ function removeFriend(req, res) {
     const userId = req.user.id;
     const { friendId } = req.params;
 
-    const friendship = db.prepare(`
-      SELECT id FROM friendships
-      WHERE ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))
-    `).get(userId, friendId, friendId, userId);
-
-    if (!friendship) {
-      return res.status(404).json({ error: 'Friendship record not found' });
-    }
-
-    db.prepare('DELETE FROM friendships WHERE id = ?').run(friendship.id);
+    // Remove any friendship between current user and friendId (by userId, friendshipId, or username/email)
+    db.prepare(`
+      DELETE FROM friendships
+      WHERE (sender_id = ? AND receiver_id = ?)
+         OR (sender_id = ? AND receiver_id = ?)
+         OR id = ?
+         OR (sender_id = ? AND receiver_id IN (SELECT id FROM users WHERE LOWER(username) = LOWER(?) OR LOWER(email) = LOWER(?)))
+         OR (receiver_id = ? AND sender_id IN (SELECT id FROM users WHERE LOWER(username) = LOWER(?) OR LOWER(email) = LOWER(?)))
+    `).run(userId, friendId, friendId, userId, friendId, userId, friendId, friendId, userId, friendId, friendId);
 
     // Broadcast removal via Socket.io to both participants
     const io = req.app.get('io');

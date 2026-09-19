@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiRequest, getMediaUrl } from '../../services/api';
-import { getLocalFriends, saveLocalFriends, syncDataToServer, removeLocalFriend, unmarkRemovedFriend } from '../../services/persistence';
+import { getLocalFriends, saveLocalFriends, syncDataToServer, removeLocalFriend, unmarkRemovedFriend, getRemovedFriends } from '../../services/persistence';
 import { useSocket } from '../../context/SocketContext';
 import { UserPlus, Users, Mail, Search, Check, X, MessageSquare, Trash2, ShieldCheck, Clock, UserCheck, ArrowLeft, UserMinus } from 'lucide-react';
 
@@ -29,20 +29,14 @@ export default function FriendsView({ onStartChat, onBack }) {
   const [actionLoading, setActionLoading] = useState({});
 
   // Fetch Friends List
-  const fetchFriends = async ({ afterSync } = {}) => {
+  const fetchFriends = async () => {
     try {
       const data = await apiRequest('/friends');
-      if (data && data.friends) {
-        setFriends(data.friends);
-        saveLocalFriends(data.friends, true);
-        if (data.friends.length === 0) {
-          const local = getLocalFriends();
-          if (local.length > 0 && !afterSync) {
-            syncDataToServer(true).then(() => {
-              setTimeout(() => fetchFriends({ afterSync: true }), 2000);
-            });
-          }
-        }
+      if (data && Array.isArray(data.friends)) {
+        const removed = getRemovedFriends();
+        const active = data.friends.filter(f => !removed.has(String(f.id)) && !removed.has(String(f.username || '').toLowerCase()));
+        setFriends(active);
+        saveLocalFriends(active, true);
       }
     } catch (err) {
       console.error('Failed to load friends:', err);
@@ -200,19 +194,26 @@ export default function FriendsView({ onStartChat, onBack }) {
   const handleRemoveFriend = async (friendId, friendUsername) => {
     const name = friendUsername || 'this friend';
     if (!window.confirm(`Are you sure you want to remove ${name} from your friends?`)) return;
-    setActionLoading(prev => ({ ...prev, [friendId]: true }));
+
+    // 1. Optimistic removal from UI state immediately
+    setFriends(prev => prev.filter(f => f.id !== friendId && f.username !== friendUsername));
+
+    // 2. Remove from local storage cache immediately
+    removeLocalFriend(friendId, friendUsername);
+
+    // 3. Notify backend
     try {
       await apiRequest(`/friends/${friendId}`, 'DELETE');
-      removeLocalFriend(friendId);
-      setFriends(prev => prev.filter(f => f.id !== friendId));
-      if (searchQuery.trim()) {
+    } catch (err) {
+      console.warn('Backend delete friend warning:', err);
+    }
+
+    // 4. Update search query if active
+    if (searchQuery.trim()) {
+      try {
         const res = await apiRequest(`/users/search?q=${encodeURIComponent(searchQuery.trim())}`);
         setSearchResults(res.users || []);
-      }
-    } catch (err) {
-      alert(err.message || 'Failed to remove friend');
-    } finally {
-      setActionLoading(prev => ({ ...prev, [friendId]: false }));
+      } catch {}
     }
   };
 
@@ -350,16 +351,14 @@ export default function FriendsView({ onStartChat, onBack }) {
                         <span>Chat</span>
                       </button>
                       <button
-                        onClick={() => handleRemoveFriend(friend.id, friend.username)}
-                        disabled={actionLoading[friend.id]}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveFriend(friend.id, friend.username);
+                        }}
                         title="Remove Friend"
-                        className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 rounded-xl transition-all disabled:opacity-50"
+                        className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 rounded-xl transition-all"
                       >
-                        {actionLoading[friend.id] ? (
-                          <div className="w-4 h-4 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <Trash2 className="w-4 h-4" />
-                        )}
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
@@ -532,16 +531,14 @@ export default function FriendsView({ onStartChat, onBack }) {
                             <span>Chat</span>
                           </button>
                           <button
-                            onClick={() => handleRemoveFriend(user.id, user.username)}
-                            disabled={actionLoading[user.id]}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveFriend(user.id, user.username);
+                            }}
                             title="Remove Friend"
-                            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 rounded-xl transition-all disabled:opacity-50"
+                            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 rounded-xl transition-all"
                           >
-                            {actionLoading[user.id] ? (
-                              <div className="w-4 h-4 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                              <Trash2 className="w-4 h-4" />
-                            )}
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       )}

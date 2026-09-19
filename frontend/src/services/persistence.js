@@ -39,17 +39,30 @@ export function getRemovedFriends() {
   }
 }
 
-export function removeLocalFriend(friendId) {
-  if (!friendId) return;
+export function removeLocalFriend(friendId, friendUsername) {
+  if (!friendId && !friendUsername) return;
   try {
     const removed = getRemovedFriends();
-    removed.add(friendId);
+    if (friendId) {
+      removed.add(String(friendId));
+    }
+    if (friendUsername) {
+      removed.add(String(friendUsername).toLowerCase());
+    }
     localStorage.setItem(REMOVED_FRIENDS_KEY, JSON.stringify(Array.from(removed)));
 
     const raw = localStorage.getItem(FRIENDS_KEY);
     const list = raw ? JSON.parse(raw) : [];
     if (Array.isArray(list)) {
-      const filtered = list.filter(f => f && f.id !== friendId);
+      const filtered = list.filter(f => {
+        if (!f) return false;
+        const fid = String(f.id || f.friendshipId || '');
+        const fuser = String(f.username || '').toLowerCase();
+        if (friendId && (fid === String(friendId) || f.friendshipId === String(friendId))) return false;
+        if (friendUsername && fuser === String(friendUsername).toLowerCase()) return false;
+        if (removed.has(fid) || (fuser && removed.has(fuser))) return false;
+        return true;
+      });
       localStorage.setItem(FRIENDS_KEY, JSON.stringify(filtered));
     }
   } catch (e) {
@@ -57,14 +70,13 @@ export function removeLocalFriend(friendId) {
   }
 }
 
-export function unmarkRemovedFriend(friendId) {
-  if (!friendId) return;
+export function unmarkRemovedFriend(friendId, friendUsername) {
+  if (!friendId && !friendUsername) return;
   try {
     const removed = getRemovedFriends();
-    if (removed.has(friendId)) {
-      removed.delete(friendId);
-      localStorage.setItem(REMOVED_FRIENDS_KEY, JSON.stringify(Array.from(removed)));
-    }
+    if (friendId && removed.has(String(friendId))) removed.delete(String(friendId));
+    if (friendUsername && removed.has(String(friendUsername).toLowerCase())) removed.delete(String(friendUsername).toLowerCase());
+    localStorage.setItem(REMOVED_FRIENDS_KEY, JSON.stringify(Array.from(removed)));
   } catch {}
 }
 
@@ -76,7 +88,12 @@ export function getLocalFriends() {
     const map = new Map();
     if (Array.isArray(list)) {
       list.forEach(f => {
-        if (f && f.id && !removed.has(f.id)) map.set(f.id, f);
+        if (!f || !f.id) return;
+        const fid = String(f.id);
+        const fuser = String(f.username || '').toLowerCase();
+        if (!removed.has(fid) && !removed.has(fuser)) {
+          map.set(f.id, f);
+        }
       });
     }
 
@@ -86,8 +103,10 @@ export function getLocalFriends() {
       const convs = convRaw ? JSON.parse(convRaw) : [];
       if (Array.isArray(convs)) {
         convs.forEach(c => {
-          if (c && c.type === 'PRIVATE' && c.peer && c.peer.id && !removed.has(c.peer.id)) {
-            if (!map.has(c.peer.id)) {
+          if (c && c.type === 'PRIVATE' && c.peer && c.peer.id) {
+            const peerId = String(c.peer.id);
+            const peerUsername = String(c.peer.username || '').toLowerCase();
+            if (!removed.has(peerId) && !removed.has(peerUsername) && !map.has(c.peer.id)) {
               map.set(c.peer.id, {
                 id: c.peer.id,
                 username: c.peer.username || 'Friend',
