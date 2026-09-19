@@ -3,6 +3,8 @@ import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import { useSound } from './SoundContext';
 
+import { Capacitor } from '@capacitor/core';
+
 const SocketContext = createContext();
 
 export function SocketProvider({ children }) {
@@ -29,6 +31,10 @@ export function SocketProvider({ children }) {
     const getSocketUrl = () => {
       const customUrl = import.meta.env.VITE_SOCKET_URL;
       if (customUrl && customUrl.trim()) return customUrl;
+      // Native mobile app via Capacitor
+      if (typeof window !== 'undefined' && (Capacitor.isNativePlatform() || window.Capacitor)) {
+        return 'https://pulse-chat-o97b.onrender.com';
+      }
       if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
         return 'https://pulse-chat-o97b.onrender.com';
       }

@@ -1,7 +1,13 @@
+import { Capacitor } from '@capacitor/core';
+
 export const getBackendUrl = () => {
   const customUrl = import.meta.env.VITE_API_URL;
   if (customUrl && customUrl.trim()) {
     return customUrl.replace(/\/$/, '');
+  }
+  // When running inside Native Android or iOS app via Capacitor
+  if (typeof window !== 'undefined' && (Capacitor.isNativePlatform() || window.Capacitor)) {
+    return 'https://pulse-chat-o97b.onrender.com';
   }
   if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
     return 'https://pulse-chat-o97b.onrender.com';
