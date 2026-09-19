@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Edit3, Check, X, Camera, MessageSquare, Image, Sparkles } from 'lucide-react';
+import { ArrowLeft, Edit3, Check, X, Camera, MessageSquare, Image, Sparkles, UserMinus, UserPlus, Clock } from 'lucide-react';
 import { apiRequest, getMediaUrl } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { removeLocalFriend, unmarkRemovedFriend } from '../../services/persistence';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://pulse-chat-o97b.onrender.com';
 
@@ -18,7 +19,39 @@ export default function ProfilePage({ userId, onBack, onStartChat }) {
   const [editData, setEditData] = useState({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [friendActionLoading, setFriendActionLoading] = useState(false);
   const fileRef = useRef();
+
+  const handleRemoveFriend = async () => {
+    if (!window.confirm(`Are you sure you want to remove ${activeProfile?.username || 'this user'} from your friends?`)) return;
+    setFriendActionLoading(true);
+    try {
+      await apiRequest(`/friends/${targetId}`, 'DELETE');
+      removeLocalFriend(targetId);
+      setProfile(p => ({
+        ...p,
+        friendshipStatus: 'NONE',
+        friends_count: Math.max(0, (p?.friends_count || 1) - 1)
+      }));
+    } catch (err) {
+      alert(err.message || 'Failed to remove friend');
+    } finally {
+      setFriendActionLoading(false);
+    }
+  };
+
+  const handleAddFriend = async () => {
+    setFriendActionLoading(true);
+    try {
+      unmarkRemovedFriend(targetId);
+      await apiRequest('/friends/request', 'POST', { targetUserId: targetId });
+      setProfile(p => ({ ...p, friendshipStatus: 'PENDING_SENT' }));
+    } catch (err) {
+      alert(err.message || 'Failed to send friend request');
+    } finally {
+      setFriendActionLoading(false);
+    }
+  };
 
   const fetchProfile = async () => {
     try {
@@ -148,13 +181,46 @@ export default function ProfilePage({ userId, onBack, onStartChat }) {
           )}
 
           {!isOwn && (
-            <button
-              onClick={() => onStartChat && onStartChat(activeProfile)}
-              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors shadow-sm"
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-              <span>Message</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => onStartChat && onStartChat(activeProfile)}
+                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors shadow-sm"
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>Message</span>
+              </button>
+
+              {activeProfile.friendshipStatus === 'FRIENDS' && (
+                <button
+                  onClick={handleRemoveFriend}
+                  disabled={friendActionLoading}
+                  className="px-3 py-1.5 bg-slate-900 hover:bg-rose-950/60 border border-slate-800 hover:border-rose-800/60 text-slate-300 hover:text-rose-300 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-all shadow-sm disabled:opacity-50"
+                  title="Remove Friend"
+                >
+                  <UserMinus className="w-3.5 h-3.5" />
+                  <span>{friendActionLoading ? 'Removing...' : 'Remove Friend'}</span>
+                </button>
+              )}
+
+              {activeProfile.friendshipStatus === 'NONE' && (
+                <button
+                  onClick={handleAddFriend}
+                  disabled={friendActionLoading}
+                  className="px-3 py-1.5 bg-indigo-950/60 hover:bg-indigo-900/80 border border-indigo-700/50 text-indigo-300 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-all shadow-sm disabled:opacity-50"
+                  title="Add Friend"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>{friendActionLoading ? 'Sending...' : 'Add Friend'}</span>
+                </button>
+              )}
+
+              {activeProfile.friendshipStatus === 'PENDING_SENT' && (
+                <span className="px-3 py-1.5 bg-slate-900 border border-slate-800 text-slate-400 text-xs font-semibold rounded-xl flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Request Sent</span>
+                </span>
+              )}
+            </div>
           )}
         </div>
       </div>

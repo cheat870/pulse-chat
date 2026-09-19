@@ -5,7 +5,7 @@ import PinnedMessageBar from './PinnedMessageBar';
 import SearchMessagesPanel from './SearchMessagesPanel';
 import ChatThemePanel from './ChatThemePanel';
 import { apiRequest, getMediaUrl } from '../../services/api';
-import { getLocalMessages, saveLocalMessages, getLocalConversations, syncDataToServer } from '../../services/persistence';
+import { getLocalMessages, saveLocalMessages, getLocalConversations, syncDataToServer, removeLocalFriend } from '../../services/persistence';
 import { useSocket } from '../../context/SocketContext';
 import { useSound } from '../../context/SoundContext';
 import { useAuth } from '../../context/AuthContext';
@@ -13,7 +13,7 @@ import { useCall } from '../../context/CallContext';
 import {
   Phone, Video, Info, ArrowLeft, Users, Shield, Circle,
   Search, Palette, BarChart2, Bookmark, MessageSquare, Timer, Clock, Trash2,
-  Lock, ShieldCheck, Key
+  Lock, ShieldCheck, Key, MoreVertical, UserMinus
 } from 'lucide-react';
 import { getOrDeriveSharedKey, encryptE2EEMessage, decryptE2EEMessage, isE2EEMessage } from '../../services/e2ee';
 
@@ -41,6 +41,7 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
   const [currentTheme, setCurrentTheme] = useState({ theme_color: 'indigo', wallpaper: 'none' });
   const [disappearAfter, setDisappearAfter] = useState(() => conversation?.disappear_after || null);
   const [showDisappearMenu, setShowDisappearMenu] = useState(false);
+  const [showPeerMenu, setShowPeerMenu] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const messageListRef = useRef(null);
 
@@ -670,6 +671,37 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
               <button onClick={() => startCall({ id: peer.id, name: peer.username || conversation.name, avatar: peer.avatar_url || conversation.avatarUrl }, 'video')} className="p-2 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-xl transition-all" title="Video Call">
                 <Video className="w-5 h-5" />
               </button>
+              <div className="relative">
+                <button
+                  onClick={() => setShowPeerMenu(v => !v)}
+                  className={`p-2 rounded-xl transition-all ${showPeerMenu ? 'text-white bg-slate-800' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                  title="More Options"
+                >
+                  <MoreVertical className="w-5 h-5" />
+                </button>
+
+                {showPeerMenu && (
+                  <div className="absolute right-0 top-11 z-30 w-44 bg-slate-950 border border-slate-800 rounded-2xl p-1.5 shadow-2xl space-y-1 text-xs glass-panel">
+                    <button
+                      onClick={async () => {
+                        setShowPeerMenu(false);
+                        if (!window.confirm(`Are you sure you want to remove ${peer.username || 'this user'} from your friends?`)) return;
+                        try {
+                          await apiRequest(`/friends/${peer.id}`, 'DELETE');
+                          removeLocalFriend(peer.id);
+                          alert(`Removed ${peer.username || 'user'} from friends.`);
+                        } catch (err) {
+                          alert(err.message || 'Failed to remove friend');
+                        }
+                      }}
+                      className="w-full px-3 py-2 text-left rounded-xl flex items-center gap-2 text-rose-400 hover:bg-rose-950/40 hover:text-rose-300 transition-colors"
+                    >
+                      <UserMinus className="w-4 h-4" />
+                      <span>Remove Friend</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </>
           )}
           {isGroup && (

@@ -242,7 +242,6 @@ function removeFriend(req, res) {
     const friendship = db.prepare(`
       SELECT id FROM friendships
       WHERE ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))
-        AND status = 'ACCEPTED'
     `).get(userId, friendId, friendId, userId);
 
     if (!friendship) {
@@ -251,7 +250,14 @@ function removeFriend(req, res) {
 
     db.prepare('DELETE FROM friendships WHERE id = ?').run(friendship.id);
 
-    return res.json({ message: 'Friend removed successfully', friendId });
+    // Broadcast removal via Socket.io to both participants
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`user:${userId}`).emit('friend_removed', { friendId });
+      io.to(`user:${friendId}`).emit('friend_removed', { friendId: userId });
+    }
+
+    return res.json({ success: true, message: 'Friend removed successfully', friendId });
   } catch (err) {
     console.error('Remove Friend Error:', err);
     return res.status(500).json({ error: 'Failed to remove friend' });

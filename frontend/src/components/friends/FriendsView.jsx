@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { apiRequest, getMediaUrl } from '../../services/api';
-import { getLocalFriends, saveLocalFriends, syncDataToServer } from '../../services/persistence';
+import { getLocalFriends, saveLocalFriends, syncDataToServer, removeLocalFriend, unmarkRemovedFriend } from '../../services/persistence';
 import { useSocket } from '../../context/SocketContext';
-import { UserPlus, Users, Mail, Search, Check, X, MessageSquare, Trash2, ShieldCheck, Clock, UserCheck, ArrowLeft } from 'lucide-react';
+import { UserPlus, Users, Mail, Search, Check, X, MessageSquare, Trash2, ShieldCheck, Clock, UserCheck, ArrowLeft, UserMinus } from 'lucide-react';
 
 export default function FriendsView({ onStartChat, onBack }) {
   const { socket } = useSocket();
@@ -33,20 +33,14 @@ export default function FriendsView({ onStartChat, onBack }) {
     try {
       const data = await apiRequest('/friends');
       if (data && data.friends) {
-        if (data.friends.length > 0) {
-          setFriends(data.friends);
-          saveLocalFriends(data.friends);
-        } else {
-          // Server returned empty (e.g. after Render restart) — show local cache immediately
+        setFriends(data.friends);
+        saveLocalFriends(data.friends, true);
+        if (data.friends.length === 0) {
           const local = getLocalFriends();
-          if (local.length > 0) {
-            setFriends(local);
-            if (!afterSync) {
-              // Sync local data back to server immediately, then re-fetch after server has rebuilt friendships
-              syncDataToServer(true).then(() => {
-                setTimeout(() => fetchFriends({ afterSync: true }), 2000);
-              });
-            }
+          if (local.length > 0 && !afterSync) {
+            syncDataToServer(true).then(() => {
+              setTimeout(() => fetchFriends({ afterSync: true }), 2000);
+            });
           }
         }
       }
@@ -54,7 +48,7 @@ export default function FriendsView({ onStartChat, onBack }) {
       console.error('Failed to load friends:', err);
       // On network error, show local cache
       const local = getLocalFriends();
-      if (local.length > 0) setFriends(local);
+      setFriends(local);
     }
   };
 
@@ -90,12 +84,19 @@ export default function FriendsView({ onStartChat, onBack }) {
       fetchRequests();
     };
 
+    const handleRemoved = ({ friendId }) => {
+      removeLocalFriend(friendId);
+      setFriends(prev => prev.filter(f => f.id !== friendId));
+    };
+
     socket.on('incoming_friend_request', handleIncoming);
     socket.on('friend_request_accepted', handleAccepted);
+    socket.on('friend_removed', handleRemoved);
 
     return () => {
       socket.off('incoming_friend_request', handleIncoming);
       socket.off('friend_request_accepted', handleAccepted);
+      socket.off('friend_removed', handleRemoved);
     };
   }, [socket]);
 
@@ -140,6 +141,7 @@ export default function FriendsView({ onStartChat, onBack }) {
     const targetUserId = typeof target === 'object' ? target.id : target;
     setActionLoading(prev => ({ ...prev, [targetUserId]: true }));
     try {
+      unmarkRemovedFriend(targetUserId);
       const data = await apiRequest('/friends/request', 'POST', { targetUserId });
       if (socket) {
         socket.emit('friend_request', { targetUserId, requestId: data.friendshipId });
@@ -160,6 +162,7 @@ export default function FriendsView({ onStartChat, onBack }) {
   const handleAccept = async (request) => {
     setActionLoading(prev => ({ ...prev, [request.requestId]: true }));
     try {
+      if (request.senderId) unmarkRemovedFriend(request.senderId);
       await apiRequest(`/friends/request/${request.requestId}/accept`, 'PUT');
       fetchFriends();
       fetchRequests();
@@ -194,13 +197,22 @@ export default function FriendsView({ onStartChat, onBack }) {
     }
   };
 
-  const handleRemoveFriend = async (friendId) => {
-    if (!confirm('Are you sure you want to remove this friend?')) return;
+  const handleRemoveFriend = async (friendId, friendUsername) => {
+    const name = friendUsername || 'this friend';
+    if (!window.confirm(`Are you sure you want to remove ${name} from your friends?`)) return;
+    setActionLoading(prev => ({ ...prev, [friendId]: true }));
     try {
       await apiRequest(`/friends/${friendId}`, 'DELETE');
-      fetchFriends();
+      removeLocalFriend(friendId);
+      setFriends(prev => prev.filter(f => f.id !== friendId));
+      if (searchQuery.trim()) {
+        const res = await apiRequest(`/users/search?q=${encodeURIComponent(searchQuery.trim())}`);
+        setSearchResults(res.users || []);
+      }
     } catch (err) {
-      alert(err.message);
+      alert(err.message || 'Failed to remove friend');
+    } finally {
+      setActionLoading(prev => ({ ...prev, [friendId]: false }));
     }
   };
 
@@ -338,11 +350,16 @@ export default function FriendsView({ onStartChat, onBack }) {
                         <span>Chat</span>
                       </button>
                       <button
-                        onClick={() => handleRemoveFriend(friend.id)}
+                        onClick={() => handleRemoveFriend(friend.id, friend.username)}
+                        disabled={actionLoading[friend.id]}
                         title="Remove Friend"
-                        className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 rounded-xl transition-all"
+                        className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 rounded-xl transition-all disabled:opacity-50"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        {actionLoading[friend.id] ? (
+                          <div className="w-4 h-4 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
                       </button>
                     </div>
                   </div>
@@ -506,13 +523,27 @@ export default function FriendsView({ onStartChat, onBack }) {
 
                     <div>
                       {user.friendshipStatus === 'FRIENDS' && (
-                        <button
-                          onClick={() => onStartChat(user)}
-                          className="px-3.5 py-1.5 bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-semibold flex items-center gap-1.5 hover:bg-indigo-600 hover:text-white transition-all"
-                        >
-                          <MessageSquare className="w-3.5 h-3.5" />
-                          <span>Chat</span>
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => onStartChat(user)}
+                            className="px-3 py-1.5 bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-semibold flex items-center gap-1.5 hover:bg-indigo-600 hover:text-white transition-all"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            <span>Chat</span>
+                          </button>
+                          <button
+                            onClick={() => handleRemoveFriend(user.id, user.username)}
+                            disabled={actionLoading[user.id]}
+                            title="Remove Friend"
+                            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 rounded-xl transition-all disabled:opacity-50"
+                          >
+                            {actionLoading[user.id] ? (
+                              <div className="w-4 h-4 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
                       )}
 
                       {user.friendshipStatus === 'PENDING_SENT' && (

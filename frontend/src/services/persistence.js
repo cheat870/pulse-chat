@@ -28,13 +28,56 @@ export function saveLocalUserProfile(profile) {
   }
 }
 
+const REMOVED_FRIENDS_KEY = 'pulsechat_removed_friends';
+
+export function getRemovedFriends() {
+  try {
+    const raw = localStorage.getItem(REMOVED_FRIENDS_KEY);
+    return new Set(raw ? JSON.parse(raw) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export function removeLocalFriend(friendId) {
+  if (!friendId) return;
+  try {
+    const removed = getRemovedFriends();
+    removed.add(friendId);
+    localStorage.setItem(REMOVED_FRIENDS_KEY, JSON.stringify(Array.from(removed)));
+
+    const raw = localStorage.getItem(FRIENDS_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    if (Array.isArray(list)) {
+      const filtered = list.filter(f => f && f.id !== friendId);
+      localStorage.setItem(FRIENDS_KEY, JSON.stringify(filtered));
+    }
+  } catch (e) {
+    console.warn('removeLocalFriend error:', e);
+  }
+}
+
+export function unmarkRemovedFriend(friendId) {
+  if (!friendId) return;
+  try {
+    const removed = getRemovedFriends();
+    if (removed.has(friendId)) {
+      removed.delete(friendId);
+      localStorage.setItem(REMOVED_FRIENDS_KEY, JSON.stringify(Array.from(removed)));
+    }
+  } catch {}
+}
+
 export function getLocalFriends() {
   try {
+    const removed = getRemovedFriends();
     const raw = localStorage.getItem(FRIENDS_KEY);
     const list = raw ? JSON.parse(raw) : [];
     const map = new Map();
     if (Array.isArray(list)) {
-      list.forEach(f => { if (f && f.id) map.set(f.id, f); });
+      list.forEach(f => {
+        if (f && f.id && !removed.has(f.id)) map.set(f.id, f);
+      });
     }
 
     // Auto-discover friends from persisted private conversations
@@ -43,7 +86,7 @@ export function getLocalFriends() {
       const convs = convRaw ? JSON.parse(convRaw) : [];
       if (Array.isArray(convs)) {
         convs.forEach(c => {
-          if (c && c.type === 'PRIVATE' && c.peer && c.peer.id) {
+          if (c && c.type === 'PRIVATE' && c.peer && c.peer.id && !removed.has(c.peer.id)) {
             if (!map.has(c.peer.id)) {
               map.set(c.peer.id, {
                 id: c.peer.id,
@@ -65,14 +108,16 @@ export function getLocalFriends() {
   }
 }
 
-export function saveLocalFriends(friends) {
-  if (!Array.isArray(friends) || friends.length === 0) return;
+export function saveLocalFriends(friends, overwrite = false) {
+  if (!Array.isArray(friends)) return;
   try {
-    const current = getLocalFriends();
-    // Merge by id
+    const removed = getRemovedFriends();
     const map = new Map();
-    current.forEach(f => { if (f && f.id) map.set(f.id, f); });
-    friends.forEach(f => { if (f && f.id) map.set(f.id, f); });
+    if (!overwrite) {
+      const current = getLocalFriends();
+      current.forEach(f => { if (f && f.id && !removed.has(f.id)) map.set(f.id, f); });
+    }
+    friends.forEach(f => { if (f && f.id && !removed.has(f.id)) map.set(f.id, f); });
     const merged = Array.from(map.values());
     localStorage.setItem(FRIENDS_KEY, JSON.stringify(merged));
   } catch (e) {
@@ -151,10 +196,11 @@ export function saveLocalConversations(convs) {
     const merged = deduplicateConversations([...current, ...convs]);
     localStorage.setItem(CONVS_KEY, JSON.stringify(merged));
 
-    // Also auto-save private chat peers to friends
+    // Also auto-save private chat peers to friends (only if not removed)
+    const removed = getRemovedFriends();
     const extractedFriends = [];
     merged.forEach(c => {
-      if (c && c.type === 'PRIVATE' && c.peer && c.peer.id) {
+      if (c && c.type === 'PRIVATE' && c.peer && c.peer.id && !removed.has(c.peer.id)) {
         extractedFriends.push({
           id: c.peer.id,
           username: c.peer.username || 'Friend',
