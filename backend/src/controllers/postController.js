@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { db } = require('../config/database');
 const { uploadMedia, deleteMedia } = require('../services/storageService');
+const { createNotification } = require('./notificationController');
 
 // ── Get Social Feed Posts ─────────────────────────────────────────────────────
 function getFeed(req, res) {
@@ -214,6 +215,21 @@ function togglePostLike(req, res) {
       io.emit('post_liked', payload);
     }
 
+    // Notify post owner (if they didn't react to their own post, and it's a new reaction)
+    if (action === 'added') {
+      const postOwner = db.prepare('SELECT user_id FROM posts WHERE id = ?').get(postId);
+      if (postOwner && postOwner.user_id !== userId) {
+        const reactor = db.prepare('SELECT username FROM users WHERE id = ?').get(userId);
+        createNotification(io, {
+          userId: postOwner.user_id,
+          type: 'reaction',
+          content: `${reactor?.username || 'Someone'} reacted ${emoji} to your post`,
+          fromUserId: userId,
+          referenceId: postId
+        });
+      }
+    }
+
     return res.json(payload);
   } catch (err) {
     console.error('Toggle Post Like Error:', err);
@@ -281,6 +297,18 @@ function addPostComment(req, res) {
     const io = req.app.get('io');
     if (io) {
       io.emit('new_post_comment', { postId, comment: newComment, totalComments });
+    }
+
+    // Notify post owner (not if they commented on their own post)
+    const postOwner = db.prepare('SELECT user_id FROM posts WHERE id = ?').get(postId);
+    if (postOwner && postOwner.user_id !== userId) {
+      createNotification(io, {
+        userId: postOwner.user_id,
+        type: 'comment',
+        content: `${author?.username || 'Someone'} commented on your post: "${content.trim().substring(0, 60)}"`,
+        fromUserId: userId,
+        referenceId: postId
+      });
     }
 
     return res.status(201).json({ message: 'Comment added', comment: newComment, totalComments });

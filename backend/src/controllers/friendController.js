@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { db } = require('../config/database');
+const { createNotification } = require('./notificationController');
 
 function sendRequest(req, res) {
   try {
@@ -64,6 +65,17 @@ function sendRequest(req, res) {
       INSERT INTO friendships (id, sender_id, receiver_id, status, created_at, updated_at)
       VALUES (?, ?, ?, 'PENDING', ?, ?)
     `).run(id, senderId, targetUser.id, now, now);
+
+    // Notify the receiver about the friend request
+    const io = req.app.get('io');
+    const sender = db.prepare('SELECT username FROM users WHERE id = ?').get(senderId);
+    createNotification(io, {
+      userId: targetUser.id,
+      type: 'friend_request',
+      content: `${sender?.username || 'Someone'} sent you a friend request`,
+      fromUserId: senderId,
+      referenceId: id
+    });
 
     return res.status(201).json({
       message: `Friend request sent to ${targetUser.username}`,
@@ -144,6 +156,17 @@ function acceptRequest(req, res) {
     db.prepare("UPDATE friendships SET status = 'ACCEPTED', updated_at = ? WHERE id = ?").run(now, requestId);
 
     const sender = db.prepare('SELECT id, username, email, avatar_url FROM users WHERE id = ?').get(request.sender_id);
+    const accepter = db.prepare('SELECT username FROM users WHERE id = ?').get(userId);
+
+    // Notify the original sender that their request was accepted
+    const io = req.app.get('io');
+    createNotification(io, {
+      userId: request.sender_id,
+      type: 'friend_request',
+      content: `${accepter?.username || 'Someone'} accepted your friend request`,
+      fromUserId: userId,
+      referenceId: requestId
+    });
 
     return res.json({ message: 'Friend request accepted', requestId, sender });
   } catch (err) {

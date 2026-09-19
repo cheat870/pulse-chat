@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { db } = require('../config/database');
 const { uploadMedia } = require('../services/storageService');
+const { createNotification } = require('./notificationController');
 
 
 function getMessages(req, res) {
@@ -202,8 +203,17 @@ async function sendMessage(req, res) {
         badge: '/icons/icon-192.png',
         data: { conversationId, type: 'new_message' }
       };
+      const io = req.app.get('io');
       members.forEach(m => {
         sendPushToUser(m.user_id, pushPayload).catch(() => {});
+        // In-app notification
+        createNotification(io, {
+          userId: m.user_id,
+          type: 'message',
+          content: `${senderUser?.username || 'Someone'}: ${type === 'TEXT' ? (content?.substring(0, 80) || 'Sent a message') : `Sent a ${type.toLowerCase()}`}`,
+          fromUserId: userId,
+          referenceId: conversationId
+        });
       });
     } catch (pushErr) {
       // Push notification is best effort
