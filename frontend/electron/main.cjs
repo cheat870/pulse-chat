@@ -21,22 +21,38 @@ function createWindow() {
     },
   });
 
+  // Disguise User-Agent as standard Chrome to bypass Google OAuth embedded browser block
+  const defaultUA = mainWindow.webContents.getUserAgent();
+  const cleanUA = defaultUA.replace(/Electron\/[0-9\.]+\s|\sPulseChat\/[0-9\.]+/g, '');
+  mainWindow.webContents.setUserAgent(cleanUA);
+  app.userAgentFallback = cleanUA;
+
   // Automatically grant camera and microphone permissions for WebRTC calls
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-    const allowedPermissions = ['media', 'notifications', 'mediaKeySystem', 'pointerLock'];
-    if (allowedPermissions.includes(permission)) {
-      callback(true);
-    } else {
-      callback(true);
-    }
+    callback(true);
   });
 
   session.defaultSession.setPermissionCheckHandler((webContents, permission) => {
     return true;
   });
 
-  // Open external links in default system browser
+  // Handle window popups (allow Google OAuth popup window inside app, other links in browser)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.includes('accounts.google.com') || url.includes('pulse-chat-two-sigma.vercel.app')) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width: 520,
+          height: 680,
+          title: 'Sign in with Google',
+          autoHideMenuBar: true,
+          webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+          }
+        }
+      };
+    }
     if (url.startsWith('https:') || url.startsWith('http:')) {
       shell.openExternal(url);
     }

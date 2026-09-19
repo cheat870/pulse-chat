@@ -101,7 +101,12 @@ export default function AuthModal() {
     const height = 650;
     const left = window.screen.width / 2 - width / 2;
     const top = window.screen.height / 2 - height / 2;
-    const redirectUri = window.location.origin;
+    const isDesktopOrNative = typeof window !== 'undefined' && (
+      window.location.origin === 'null' ||
+      window.location.protocol === 'file:' ||
+      (window.location.hostname === 'localhost' && !import.meta.env.DEV)
+    );
+    const redirectUri = isDesktopOrNative ? 'https://pulse-chat-two-sigma.vercel.app' : window.location.origin;
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=email%20profile%20openid&prompt=select_account`;
 
     const popup = window.open(
