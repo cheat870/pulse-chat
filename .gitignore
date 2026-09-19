@@ -19,8 +19,10 @@ backend/pulsechat.db
 # Production Builds
 frontend/dist/
 frontend/build/
+frontend/dist-electron/
 *.apk
 *.aab
+*.exe
 
 # Uploaded User Files (keep folder, ignore content)
 backend/uploads/*

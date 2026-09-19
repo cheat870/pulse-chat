@@ -31,8 +31,8 @@ export function SocketProvider({ children }) {
     const getSocketUrl = () => {
       const customUrl = import.meta.env.VITE_SOCKET_URL;
       if (customUrl && customUrl.trim()) return customUrl;
-      // Native mobile app via Capacitor
-      if (typeof window !== 'undefined' && (Capacitor.isNativePlatform() || window.Capacitor)) {
+      // Native mobile app via Capacitor or Windows Desktop via Electron
+      if (typeof window !== 'undefined' && (Capacitor.isNativePlatform() || window.Capacitor || navigator.userAgent.includes('Electron') || window.electronAPI || window.location.protocol === 'file:')) {
         return 'https://pulse-chat-o97b.onrender.com';
       }
       if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {

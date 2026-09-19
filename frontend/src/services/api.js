@@ -5,8 +5,8 @@ export const getBackendUrl = () => {
   if (customUrl && customUrl.trim()) {
     return customUrl.replace(/\/$/, '');
   }
-  // When running inside Native Android or iOS app via Capacitor
-  if (typeof window !== 'undefined' && (Capacitor.isNativePlatform() || window.Capacitor)) {
+  // When running inside Native Android/iOS (Capacitor), Windows Desktop (Electron), or file://
+  if (typeof window !== 'undefined' && (Capacitor.isNativePlatform() || window.Capacitor || navigator.userAgent.includes('Electron') || window.electronAPI || window.location.protocol === 'file:')) {
     return 'https://pulse-chat-o97b.onrender.com';
   }
   if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
