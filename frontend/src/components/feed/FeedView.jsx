@@ -98,11 +98,11 @@ export default function FeedView({ onBack }) {
   });
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-slate-950 overflow-hidden relative">
+    <div className="flex-1 flex flex-col h-full bg-slate-950 overflow-hidden relative min-w-0 w-full">
       
       {/* Header Bar */}
-      <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/80 backdrop-blur-md z-10">
-        <div className="flex items-center gap-3">
+      <div className="p-3.5 sm:p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/80 backdrop-blur-md z-10">
+        <div className="flex items-center gap-2.5 sm:gap-3">
           <button
             onClick={onBack}
             className="md:hidden p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-all"
@@ -111,12 +111,12 @@ export default function FeedView({ onBack }) {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-2xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30 shadow-inner">
-              <Globe className="w-5 h-5" />
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30 shadow-inner shrink-0">
+              <Globe className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white font-display">News Feed</h2>
-              <p className="text-xs text-slate-400">Discover posts, photos & videos from friends</p>
+              <h2 className="text-sm sm:text-base font-bold text-white font-display">News Feed</h2>
+              <p className="text-[10px] sm:text-xs text-slate-400">Discover posts, photos & videos from friends</p>
             </div>
           </div>
         </div>
@@ -133,7 +133,7 @@ export default function FeedView({ onBack }) {
       </div>
 
       {/* Main Feed Scrollable Container */}
-      <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-6 space-y-6 max-w-2xl mx-auto w-full">
+      <div className="flex-1 overflow-y-auto px-2 sm:px-4 md:px-6 py-3 sm:py-6 space-y-4 sm:space-y-6 max-w-2xl mx-auto w-full min-w-0">
         
         {/* 24h Stories Bar */}
         <StoriesBar />

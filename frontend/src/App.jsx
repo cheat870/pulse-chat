@@ -134,7 +134,10 @@ function MainApp() {
   const isFullScreenView = activeConvId || currentView !== 'chat';
 
   return (
-    <div className="h-screen w-screen flex bg-slate-950 text-slate-100 overflow-hidden font-sans">
+    <div
+      className="h-[100dvh] w-full max-w-[100vw] flex bg-slate-950 text-slate-100 overflow-hidden font-sans select-none"
+      style={{ height: 'var(--tg-viewport-stable-height, var(--tg-viewport-height, 100dvh))' }}
+    >
       {/* Global Call Modal */}
       <CallModal />
       
@@ -198,7 +201,7 @@ function MainApp() {
       </div>
 
       {/* Main Content Workspace */}
-      <div className={`${(!activeConvId && currentView === 'chat') ? 'hidden md:flex' : 'flex'} flex-1 h-full overflow-hidden`}>
+      <div className={`${(!activeConvId && currentView === 'chat') ? 'hidden md:flex' : 'flex'} flex-1 h-full overflow-hidden min-w-0 w-full`}>
         {currentView === 'feed' ? (
           <FeedView onBack={() => setCurrentView('chat')} />
         ) : currentView === 'friends' ? (

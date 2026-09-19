@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getMediaUrl, apiRequest } from '../../services/api';
 import {
   Heart, MessageCircle, Share2, Trash2, Send,
-  MoreHorizontal, CornerDownRight, Check
+  MoreHorizontal, CornerDownRight, Check, X, Maximize2
 } from 'lucide-react';
 
 export default function PostCard({ post, onDeletePost }) {
@@ -18,6 +18,7 @@ export default function PostCard({ post, onDeletePost }) {
   const [commentLoading, setCommentLoading] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showLightbox, setShowLightbox] = useState(false);
 
   const reactionEmojis = [
     { emoji: '👍', label: 'Like' },
@@ -118,7 +119,7 @@ export default function PostCard({ post, onDeletePost }) {
   };
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-xl glass-panel">
+    <div className="bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl overflow-hidden shadow-xl glass-panel w-full min-w-0 max-w-full">
       
       {/* Post Header */}
       <div className="p-4 sm:p-5 flex items-center justify-between">
@@ -154,7 +155,7 @@ export default function PostCard({ post, onDeletePost }) {
       {/* Post Content Text */}
       {postData.content && (
         <div className="px-4 sm:px-5 pb-3">
-          <p className="text-sm text-slate-100 whitespace-pre-wrap leading-relaxed">
+          <p className="text-sm text-slate-100 whitespace-pre-wrap leading-relaxed break-words">
             {postData.content}
           </p>
         </div>
@@ -162,21 +163,32 @@ export default function PostCard({ post, onDeletePost }) {
 
       {/* Media Display (Photo / Video) */}
       {mediaSource && (
-        <div className="bg-slate-950/70 border-y border-slate-800/80 flex items-center justify-center max-h-[550px] w-full overflow-hidden">
+        <div className="bg-slate-950/90 border-y border-slate-800/80 flex items-center justify-center w-full overflow-hidden relative group/media" style={{ minHeight: '180px', maxHeight: '480px' }}>
           {postData.media_type === 'PHOTO' && (
-            <img
-              src={mediaSource}
-              alt="Post media"
-              className="w-full max-h-[550px] object-contain rounded-none select-none transition-all"
-              onError={(e) => { e.target.onerror = null; e.target.src = 'https://placehold.co/600x400?text=Image+Unavailable'; }}
-            />
+            <>
+              <img
+                src={mediaSource}
+                alt="Post media"
+                onClick={() => setShowLightbox(true)}
+                className="max-w-full max-h-[380px] sm:max-h-[480px] w-auto h-auto object-contain cursor-pointer select-none transition-transform duration-200 hover:scale-[1.01] block mx-auto"
+                onError={(e) => { e.target.onerror = null; e.target.src = 'https://placehold.co/600x400?text=Image+Unavailable'; }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowLightbox(true)}
+                className="absolute top-3 right-3 p-1.5 rounded-lg bg-black/60 text-white/80 hover:text-white hover:bg-black/80 backdrop-blur-sm opacity-0 group-hover/media:opacity-100 transition-opacity hidden sm:flex items-center gap-1 text-xs"
+                title="View full image"
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+              </button>
+            </>
           )}
           {postData.media_type === 'VIDEO' && (
             <video
               src={mediaSource}
               controls
               playsInline
-              className="w-full max-h-[550px] object-contain bg-black"
+              className="max-w-full max-h-[380px] sm:max-h-[480px] w-auto h-auto object-contain bg-black mx-auto"
             />
           )}
         </div>
@@ -348,6 +360,29 @@ export default function PostCard({ post, onDeletePost }) {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Fullscreen Lightbox Modal */}
+      {showLightbox && mediaSource && postData.media_type === 'PHOTO' && (
+        <div
+          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150"
+          onClick={() => setShowLightbox(false)}
+        >
+          <button
+            type="button"
+            onClick={() => setShowLightbox(false)}
+            className="absolute top-4 right-4 z-50 p-2.5 rounded-full bg-slate-800/90 text-white hover:bg-slate-700 transition-colors shadow-lg active:scale-95"
+            title="Close"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={mediaSource}
+            alt="Full size preview"
+            className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl select-none"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
 

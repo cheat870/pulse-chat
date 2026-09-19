@@ -511,28 +511,28 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
       )}
 
       {/* Top Header */}
-      <div className="p-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-900/80 backdrop-blur-md z-10">
-        <div className="flex items-center gap-3">
-          <button onClick={onBack} className="md:hidden p-1.5 text-slate-400 hover:text-white rounded-xl">
+      <div className="p-3 sm:p-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-900/80 backdrop-blur-md z-10 gap-2 min-w-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+          <button onClick={onBack} className="md:hidden p-1.5 text-slate-400 hover:text-white rounded-xl shrink-0">
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="relative">
+          <div className="relative shrink-0">
             <img
               src={conversation.avatarUrl ? getMediaUrl(conversation.avatarUrl) : `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(conversation.name)}`}
               alt={conversation.name}
-              className="w-10 h-10 rounded-full object-cover border border-slate-700"
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover border border-slate-700"
               onError={(e) => { e.target.onerror = null; e.target.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(conversation.name)}`; }}
             />
             {!isGroup && peer && (
-              <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-slate-900 ${peer.is_online ? 'bg-emerald-500' : 'bg-slate-500'}`} />
+              <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full border-2 border-slate-900 ${peer.is_online ? 'bg-emerald-500' : 'bg-slate-500'}`} />
             )}
           </div>
-          <div>
-            <h3 className="text-sm font-bold text-white flex items-center gap-1.5 font-display">
-              <span>{conversation.name}</span>
-              {isGroup && <span className="px-1.5 py-0.5 text-[10px] bg-indigo-950 text-indigo-300 rounded-md border border-indigo-800">Group</span>}
+          <div className="min-w-0 flex-1">
+            <h3 className="text-sm font-bold text-white flex items-center gap-1.5 font-display truncate">
+              <span className="truncate">{conversation.name}</span>
+              {isGroup && <span className="px-1.5 py-0.5 text-[10px] bg-indigo-950 text-indigo-300 rounded-md border border-indigo-800 shrink-0">Group</span>}
             </h3>
-            <p className="text-xs text-slate-400 truncate max-w-[220px]">
+            <p className="text-xs text-slate-400 truncate">
               {typingUsers.size > 0 ? (
                 <span className="text-indigo-400 font-semibold animate-pulse">{Array.from(typingUsers).join(', ')} is typing...</span>
               ) : isGroup ? (
@@ -547,11 +547,11 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-1 relative">
-          {/* Search Messages */}
+        <div className="flex items-center gap-0.5 sm:gap-1 relative shrink-0">
+          {/* Search Messages (desktop only, mobile has it in More menu) */}
           <button
             onClick={() => setShowSearch(s => !s)}
-            className={`p-2 rounded-xl transition-all ${showSearch ? 'text-indigo-400 bg-slate-800' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+            className={`p-1.5 sm:p-2 rounded-xl transition-all hidden sm:flex items-center justify-center ${showSearch ? 'text-indigo-400 bg-slate-800' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
             title="Search Messages"
           >
             <Search className="w-5 h-5" />
@@ -561,14 +561,14 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
           <div className="relative">
             <button
               onClick={() => setShowDisappearMenu(d => !d)}
-              className={`p-2 rounded-xl transition-all flex items-center gap-1 ${
+              className={`p-1.5 sm:p-2 rounded-xl transition-all flex items-center gap-1 ${
                 disappearAfter
                   ? 'text-amber-400 bg-amber-950/40 border border-amber-800/60'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800'
               }`}
               title={disappearAfter ? `Disappearing Messages: ${disappearAfter}s` : 'Set Disappearing Messages'}
             >
-              <Timer className="w-5 h-5" />
+              <Timer className="w-4 h-4 sm:w-5 sm:h-5" />
               {disappearAfter ? (
                 <span className="text-[10px] font-bold text-amber-400">
                   {disappearAfter < 60 ? `${disappearAfter}s` : disappearAfter < 3600 ? `${Math.round(disappearAfter / 60)}m` : disappearAfter < 86400 ? `${Math.round(disappearAfter / 3600)}h` : `${Math.round(disappearAfter / 86400)}d`}
@@ -619,7 +619,7 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
                 }
                 setIsE2EEEnabled(prev => !prev);
               }}
-              className={`p-2 rounded-xl transition-all flex items-center gap-1.5 ${
+              className={`p-1.5 sm:p-2 rounded-xl transition-all flex items-center gap-1 ${
                 isE2EEEnabled
                   ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 shadow-sm shadow-emerald-500/20 ring-1 ring-emerald-500/30'
                   : peerHasE2EEKey
@@ -637,18 +637,18 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
               {isE2EEEnabled ? (
                 <>
                   <Lock className="w-4 h-4 text-emerald-400" />
-                  <span className="text-[10px] font-bold text-emerald-400 hidden sm:inline">E2EE ON</span>
+                  <span className="text-[10px] font-bold text-emerald-400 hidden md:inline">E2EE ON</span>
                 </>
               ) : (
-                <ShieldCheck className="w-5 h-5" />
+                <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" />
               )}
             </button>
           )}
 
-          {/* Chat Theme Customization */}
+          {/* Chat Theme Customization (desktop only, mobile has it in More menu) */}
           <button
             onClick={() => setShowThemePanel(t => !t)}
-            className="p-2 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-xl transition-all"
+            className="p-1.5 sm:p-2 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-xl transition-all hidden sm:flex items-center justify-center"
             title="Chat Wallpaper & Color Theme"
           >
             <Palette className="w-5 h-5" />
@@ -665,23 +665,43 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
 
           {!isGroup && peer && (
             <>
-              <button onClick={() => startCall({ id: peer.id, name: peer.username || conversation.name, avatar: peer.avatar_url || conversation.avatarUrl }, 'voice')} className="p-2 text-slate-400 hover:text-green-400 hover:bg-slate-800 rounded-xl transition-all" title="Voice Call">
-                <Phone className="w-5 h-5" />
+              <button onClick={() => startCall({ id: peer.id, name: peer.username || conversation.name, avatar: peer.avatar_url || conversation.avatarUrl }, 'voice')} className="p-1.5 sm:p-2 text-slate-400 hover:text-green-400 hover:bg-slate-800 rounded-xl transition-all" title="Voice Call">
+                <Phone className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
-              <button onClick={() => startCall({ id: peer.id, name: peer.username || conversation.name, avatar: peer.avatar_url || conversation.avatarUrl }, 'video')} className="p-2 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-xl transition-all" title="Video Call">
-                <Video className="w-5 h-5" />
+              <button onClick={() => startCall({ id: peer.id, name: peer.username || conversation.name, avatar: peer.avatar_url || conversation.avatarUrl }, 'video')} className="p-1.5 sm:p-2 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-xl transition-all" title="Video Call">
+                <Video className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
               <div className="relative">
                 <button
                   onClick={() => setShowPeerMenu(v => !v)}
-                  className={`p-2 rounded-xl transition-all ${showPeerMenu ? 'text-white bg-slate-800' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                  className={`p-1.5 sm:p-2 rounded-xl transition-all ${showPeerMenu ? 'text-white bg-slate-800' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
                   title="More Options"
                 >
-                  <MoreVertical className="w-5 h-5" />
+                  <MoreVertical className="w-4 h-4 sm:w-5 sm:h-5" />
                 </button>
 
                 {showPeerMenu && (
-                  <div className="absolute right-0 top-11 z-30 w-44 bg-slate-950 border border-slate-800 rounded-2xl p-1.5 shadow-2xl space-y-1 text-xs glass-panel">
+                  <div className="absolute right-0 top-11 z-30 w-48 bg-slate-950 border border-slate-800 rounded-2xl p-1.5 shadow-2xl space-y-1 text-xs glass-panel">
+                    <button
+                      onClick={() => {
+                        setShowPeerMenu(false);
+                        setShowSearch(s => !s);
+                      }}
+                      className="w-full px-3 py-2 text-left rounded-xl flex items-center gap-2 text-slate-300 hover:bg-slate-800 hover:text-white transition-colors sm:hidden"
+                    >
+                      <Search className="w-4 h-4" />
+                      <span>Search Messages</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowPeerMenu(false);
+                        setShowThemePanel(true);
+                      }}
+                      className="w-full px-3 py-2 text-left rounded-xl flex items-center gap-2 text-slate-300 hover:bg-slate-800 hover:text-white transition-colors sm:hidden"
+                    >
+                      <Palette className="w-4 h-4" />
+                      <span>Wallpaper & Theme</span>
+                    </button>
                     <button
                       onClick={async () => {
                         setShowPeerMenu(false);
@@ -705,8 +725,8 @@ export default function ChatWindow({ conversationId, onBack, onOpenGroupInfo }) 
             </>
           )}
           {isGroup && (
-            <button onClick={() => onOpenGroupInfo(conversation)} className="p-2 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-xl transition-all" title="Group Details">
-              <Users className="w-5 h-5" />
+            <button onClick={() => onOpenGroupInfo(conversation)} className="p-1.5 sm:p-2 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-xl transition-all" title="Group Details">
+              <Users className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
           )}
         </div>
